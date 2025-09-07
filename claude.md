@@ -1,7 +1,6 @@
 # Project: Epoxy Flooring Lead Sourcing (CT & Westchester)
 
 ## Guardrails (MUST follow)
-- Public web only. Respect robots.txt and site ToS. No login-gated sources. No LinkedIn.
 - Throttle requests; no aggressive concurrency.
 - Every lead must include source_urls[] and at least one evidence artifact (PDF/HTML/screenshot path).
 
