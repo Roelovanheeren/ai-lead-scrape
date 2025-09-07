@@ -1,0 +1,19 @@
+vertical: aviation
+regions: [ "CT", "Westchester County, NY" ]
+keywords:
+  - "epoxy flooring"
+  - "hangar floor"
+  - "urethane mortar"
+  - "fuel-resistant floor"
+  - "resinous flooring"
+targets:
+  - name: Westchester County Airport
+    type: airport_authority
+    urls: [ "https://airport.westchestergov.com", "https://www.westchestergov.com/rfp" ]
+  - name: Danbury Airport
+    type: municipal_airport
+    urls: [ "https://www.danbury-ct.gov" ]
+google_dorks:
+  - 'site:.gov (epoxy OR resinous) floor "request for" (bid OR proposal) CT'
+  - 'site:.edu "epoxy flooring" filetype:pdf'
+  - 'hangar "epoxy" (RFP OR bid) CT'

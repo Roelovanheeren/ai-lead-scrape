@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "required": ["company","vertical","city","state","source_urls","confidence"],
+  "properties": {
+    "company": {"type":"string"},
+    "facility_name": {"type":"string"},
+    "vertical": {"type":"string"},
+    "subtype": {"type":"string"},
+    "address": {"type":"string"},
+    "city": {"type":"string"},
+    "state": {"type":"string"},
+    "zip": {"type":"string"},
+    "county": {"type":"string"},
+    "facility_sqft": {"type":"number"},
+    "floor_type_signals": {"type":"array","items":{"type":"string"}},
+    "renovation_signals": {"type":"array","items":{"type":"string"}},
+    "compliance_drivers": {"type":"array","items":{"type":"string"}},
+    "decision_maker_titles": {"type":"array","items":{"type":"string"}},
+    "public_phone": {"type":"string"},
+    "public_email": {"type":"string"}},
+    "website": {"type":"string"},
+    "source_urls": {"type":"array","items":{"type":"string"}},
+    "source_type": {"type":"string"},
+    "last_seen": {"type":"string"},
+    "confidence": {"type":"number"},
+    "notes": {"type":"string"},
+    "evidence_files": {"type":"array","items":{"type":"string"}}
+}

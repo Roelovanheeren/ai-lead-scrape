@@ -1,0 +1,19 @@
+weights:
+  compliance_driver: 25
+  active_rfp_or_permit: 20
+  facility_type_match: 15
+  recency_180d: 10
+  recency_365d: 6
+  official_source: 10
+  decision_maker_on_site: 8
+  distress_keywords: 6
+  corroboration_2plus: 6
+  public_contact_present: 4
+penalties:
+  third_party_lead_farm: -15
+  vague_directory: -10
+  stale_3y: -20
+tiers:
+  A: ">=80"
+  B: "60-79"
+  C: "<60"
