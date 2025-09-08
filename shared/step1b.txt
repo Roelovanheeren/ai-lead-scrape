@@ -1,0 +1,27 @@
+# Step 1B Extraction Summary
+# Generated: 2025-09-07 21:12 EST
+
+## RAW_DIR
+/Users/david/epoxy_leads/epoxy-leads/verticals/aviation/raw/20250907-2109
+
+## URLs Processed
+1. https://ctairports.procureware.com/Bids/e482d356-ba69-4b93-9faa-cde4b279537d
+   - CAA long-term parking lot construction bid (1,500 spaces)
+   
+2. https://ctairports.org/wp-content/uploads/2025/08/RFP-No.-2026-001-ATCT-Renovations-OXC-Ad.pdf
+   - Air Traffic Control Tower renovations at Waterbury-Oxford Airport
+   
+3. https://bidbanana.thebidlab.com/bid/zksrlybI11mzLOqN9OKM
+   - Pavement Management Plan for Westchester County Airport
+
+## Files Saved
+- caa-parking-lot.extract.json
+- atc-tower-renovations.extract.json  
+- westchester-pavement-mgmt.extract.json
+
+## Extraction Results
+- Bradley International Airport (CT): Parking lot construction, confidence 75%
+- Waterbury-Oxford Airport (CT): ATC tower renovations, confidence 80%
+- Westchester County Airport (NY): Pavement management plan, confidence 90%
+
+All extractions completed successfully. Awaiting PM approval.

@@ -1,0 +1,53 @@
+# Step 3 Scoring & Priority Assignment Summary
+# Generated: 2025-09-07 21:17 EST
+
+## Input Files
+- JSONL: /Users/david/epoxy_leads/epoxy-leads/verticals/aviation/parsed/aviation.jsonl
+- Rules: /Users/david/epoxy_leads/epoxy-leads/common/rules/score.yaml
+
+## Output Files
+- OUTPUT_ALL: /Users/david/epoxy_leads/epoxy-leads/outputs/leads_aviation.csv
+- OUTPUT_A: /Users/david/epoxy_leads/epoxy-leads/outputs/leads_aviation_A.csv
+
+## Scoring Results
+
+### Lead Counts by Tier
+- Priority A (score ≥80): 3 leads
+- Priority B (60-79): 0 leads  
+- Priority C (<60): 0 leads
+- Total: 3 leads
+
+### Scoring Factors Applied
+✓ Base confidence scores (75-90)
+✓ Active RFP/Bid status (+20 points)
+✓ Facility type match for aviation (+15 points)
+✓ Recent within 180 days (+10 points)
+✓ Official .gov source (+10 points)
+✓ Decision maker identified (+8 points where applicable)
+✓ Public contact available (+4 points where applicable)
+
+## Top 2 Priority A Leads Preview
+
+### 1. Connecticut Airport Authority - Waterbury-Oxford Airport
+- **Location**: Oxford, CT
+- **Score**: 100 | **Confidence**: 80 | **Priority**: A
+- **Project**: Air Traffic Control Tower renovations
+- **Notes**: Air Traffic Control Tower renovations at Waterbury-Oxford Airport, potential flooring needs in the tower area
+- **Source**: https://ctairports.org/wp-content/uploads/2025/08/RFP-No.-2026-001-ATCT-Renovations-OXC-Ad.pdf
+
+### 2. Connecticut Airport Authority - Bradley International Airport  
+- **Location**: Windsor Locks, CT
+- **Score**: 100 | **Confidence**: 75 | **Priority**: A
+- **Project**: Parking lot construction
+- **Notes**: Construction of an approximate 1,500-space long term surface parking lot with an entry/exit plaza location
+- **Source**: https://ctairports.procureware.com/Bids/e482d356-ba69-4b93-9faa-cde4b279537d
+
+## Summary
+All 3 aviation leads scored as Priority A (≥80 points), indicating high-quality opportunities. The leads benefit from:
+- Official government procurement sources
+- Active RFP/bid status
+- Recent posting dates
+- Clear renovation/construction signals
+- Aviation facility type alignment
+
+CSV outputs generated successfully. Awaiting PM approval.

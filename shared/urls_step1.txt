@@ -1,0 +1,13 @@
+# Selected Aviation URLs for Extraction (Step 1)
+# Generated: 2025-09-07 20:07 EST
+
+## Connecticut URLs
+1. https://ctairports.procureware.com/Bids/e482d356-ba69-4b93-9faa-cde4b279537d
+   - CAA long-term parking lot construction bid (1,500 spaces)
+   
+2. https://ctairports.org/wp-content/uploads/2025/08/RFP-No.-2026-001-ATCT-Renovations-OXC-Ad.pdf
+   - Air Traffic Control Tower renovations at Waterbury-Oxford Airport
+
+## New York URLs  
+3. https://bidbanana.thebidlab.com/bid/zksrlybI11mzLOqN9OKM
+   - Pavement Management Plan for Westchester County Airport
