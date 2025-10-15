@@ -157,7 +157,16 @@ All scraped data, parsed leads, and output files are excluded from version contr
 
 ## License
 
-[Add your license here]
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0) - see the [LICENSE](LICENSE) file for details.
+
+**What this means:**
+- You can use, study, and modify this code freely
+- If you distribute modified versions, you MUST share the source code
+- If you run this as a web service, you MUST provide the source to users
+- Commercial use requires explicit written permission
+- You must give credit to the original author
+
+This license ensures the code remains open source and prevents proprietary theft.
 
 ## Notes
 
