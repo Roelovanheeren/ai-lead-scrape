@@ -1,19 +1,30 @@
 weights:
-  compliance_driver: 25
-  active_rfp_or_permit: 20
-  facility_type_match: 15
-  recency_180d: 10
-  recency_365d: 6
-  official_source: 10
-  decision_maker_on_site: 8
-  distress_keywords: 6
-  corroboration_2plus: 6
-  public_contact_present: 4
-penalties:
-  third_party_lead_farm: -15
-  vague_directory: -10
-  stale_3y: -20
-tiers:
-  A: ">=80"
-  B: "60-79"
-  C: "<60"
+  base_confidence: 0.2          # was too dominant implicitly
+  recency: 0.1
+  official_source: 0.1
+  active_procurement: 0.15
+  decision_maker_present: 0.05
+  contact_present: 0.05
+
+# Epoxy-aligned positive signals
+flooring_signals:
+  epoxy|resinous|polyaspartic|urethane_cement|broadcast_flake: 30
+  sanitary|haccp|usda|cleanroom|gmp|esd|anti-microbial|chemical-resistant: 20
+  slab_repair|surface_prep|moisture_mitigation|self-leveling|vct_replacement: 15
+
+# Facility alignment (+) and exclusions/penalties (-)
+facility_modifiers:
+  manufacturing|plant|fab|foundry|machine_shop: 20
+  food_processing|brewery|dairy|slaughter|usda: 25
+  lab|pharma|cleanroom: 25
+  warehouse|dc|loading_dock: 15
+  hospital|clinic|surgery|sterile: 25
+  hangar|terminal|mro: 10
+  # Penalties for poor epoxy fit
+  runway|taxiway|apron|pavement|parking_lot: -25
+
+# Priority thresholds
+priority:
+  A: 80
+  B: 60
+  C: 0
