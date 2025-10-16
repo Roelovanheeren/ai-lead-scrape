@@ -191,15 +191,6 @@ async def root():
             "status": "running"
         }
 
-# Catch-all route for React Router (must be last)
-@app.get("/{path:path}")
-async def serve_react_app(path: str):
-    """Serve React app for all non-API routes"""
-    if not path.startswith("api") and os.path.exists("/app/frontend/dist/index.html"):
-        return FileResponse("/app/frontend/dist/index.html")
-    else:
-        return {"detail": "Not Found"}
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -228,6 +219,10 @@ async def create_job(job_data: dict):
             "quality_threshold": job_data.get("quality_threshold", 0.8)
         }
         
+        logger.info(f"✅ Stored job {job_id} in job_storage")
+        logger.info(f"✅ Job storage now contains: {list(job_storage.keys())}")
+        logger.info(f"✅ Job data: {job_storage[job_id]}")
+        
         # Start the job processing in the background
         import asyncio
         asyncio.create_task(process_job_background(job_id, job_data))
@@ -249,22 +244,27 @@ async def create_job(job_data: dict):
 async def get_job(job_id: str):
     """Get job status"""
     try:
-        logger.info(f"Getting job status for job_id: {job_id}")
-        logger.info(f"Available jobs in storage: {list(job_storage.keys())}")
+        logger.info(f"🔍 Getting job status for job_id: {job_id}")
+        logger.info(f"🔍 Available jobs in storage: {list(job_storage.keys())}")
+        logger.info(f"🔍 Total jobs in storage: {len(job_storage)}")
         
         if job_id in job_storage:
             job_data = job_storage[job_id]
-            logger.info(f"Found job {job_id}: {job_data.get('status', 'unknown')}")
+            logger.info(f"✅ Found job {job_id}: {job_data.get('status', 'unknown')}")
+            logger.info(f"✅ Job data: {job_data}")
             return job_data
         else:
-            logger.warning(f"Job {job_id} not found in storage")
+            logger.warning(f"❌ Job {job_id} not found in storage")
+            logger.warning(f"❌ Available job IDs: {list(job_storage.keys())}")
             return {
                 "id": job_id,
                 "status": "not_found",
                 "message": "Job not found"
             }
     except Exception as e:
-        logger.error(f"Error getting job {job_id}: {str(e)}")
+        logger.error(f"❌ Error getting job {job_id}: {str(e)}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return {
             "id": job_id,
             "status": "error",
@@ -289,6 +289,15 @@ async def test_endpoint():
         "timestamp": datetime.utcnow().isoformat(),
         "environment": "production"
     }
+
+# Catch-all route for React Router (MUST BE LAST)
+@app.get("/{path:path}")
+async def serve_react_app(path: str):
+    """Serve React app for all non-API routes"""
+    if not path.startswith("api") and os.path.exists("/app/frontend/dist/index.html"):
+        return FileResponse("/app/frontend/dist/index.html")
+    else:
+        return {"detail": "Not Found"}
 
 if __name__ == "__main__":
     import uvicorn
