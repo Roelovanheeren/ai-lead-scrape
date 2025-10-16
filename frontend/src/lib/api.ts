@@ -71,6 +71,10 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
+    console.log(`🔍 API Request: ${options.method || 'GET'} ${url}`)
+    console.log(`🔍 Base URL: ${this.baseUrl}`)
+    console.log(`🔍 Endpoint: ${endpoint}`)
+    
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -79,11 +83,28 @@ class ApiClient {
       ...options,
     })
 
+    console.log(`🔍 Response Status: ${response.status} ${response.statusText}`)
+    console.log(`🔍 Response Headers:`, Object.fromEntries(response.headers.entries()))
+    
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ API Error: ${response.status} ${response.statusText}`)
+      console.error(`❌ Error Response:`, errorText)
       throw new Error(`API request failed: ${response.status} ${response.statusText}`)
     }
 
-    return response.json()
+    const responseText = await response.text()
+    console.log(`🔍 Response Text (first 200 chars):`, responseText.substring(0, 200))
+    
+    try {
+      const jsonData = JSON.parse(responseText)
+      console.log(`✅ Parsed JSON:`, jsonData)
+      return jsonData
+    } catch (parseError) {
+      console.error(`❌ JSON Parse Error:`, parseError)
+      console.error(`❌ Response was not JSON:`, responseText)
+      throw new Error(`Invalid JSON response: ${parseError}`)
+    }
   }
 
   // Dashboard endpoints

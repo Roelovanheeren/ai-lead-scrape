@@ -53,14 +53,19 @@ export default function JobStatus() {
 
   const fetchJobStatus = async () => {
     try {
-      if (!jobId) return
+      if (!jobId) {
+        console.log('❌ No jobId provided')
+        return
+      }
       
+      console.log(`🔍 Fetching job status for jobId: ${jobId}`)
       const response = await apiClient.getJobStatus(jobId)
+      console.log('✅ Job status response:', response)
       setJobData(response)
       setError(null)
     } catch (err) {
+      console.error('❌ Error fetching job status:', err)
       setError('Failed to fetch job status')
-      console.error('Error fetching job status:', err)
     } finally {
       setLoading(false)
     }
