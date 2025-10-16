@@ -119,28 +119,41 @@ export default function JobWizard({}: JobWizardProps) {
         if (activeSheet) {
           setIsLoadingExistingLeads(true)
           try {
-            // Use a default user_id for now - in a real app, this would come from authentication
-            const userId = 'default_user'
-            const response = await fetch(`/api/auth/google/sheets/${activeSheet.id}/read?user_id=${userId}`)
+            // Use the same user_id as the OAuth flow
+            const userId = 'user_123'
+            // Extract the actual Google Sheet ID (remove the googlesheets_ prefix)
+            const sheetId = activeSheet.id.replace('googlesheets_', '')
+            const response = await fetch(`/auth/google/sheets/${sheetId}/read?user_id=${userId}`)
             if (response.ok) {
               const data = await response.json()
               console.log('Sheet data received:', data)
+              console.log('Response status:', response.status)
+              console.log('Response headers:', response.headers)
               
               // Handle different response formats
               let leads = []
               if (data.success && data.rows) {
                 leads = data.rows
+                console.log('Using data.rows, count:', leads.length)
               } else if (data.success && data.values) {
                 leads = data.values
+                console.log('Using data.values, count:', leads.length)
               } else if (data.success && data.data) {
                 leads = data.data
+                console.log('Using data.data, count:', leads.length)
+              } else {
+                console.log('No data found in response:', data)
               }
               
               console.log('Processed leads:', leads)
+              console.log('First few leads:', leads.slice(0, 3))
               setExistingLeads(leads)
             } else {
               const errorText = await response.text()
               console.error('Failed to load sheet data:', response.status, response.statusText, errorText)
+              console.error('Request URL:', `/auth/google/sheets/${sheetId}/read?user_id=${userId}`)
+              console.error('Sheet ID:', sheetId)
+              console.error('User ID:', userId)
             }
           } catch (error) {
             console.error('Failed to load existing leads:', error)

@@ -123,6 +123,8 @@ export default function TargetAudienceIntelligence() {
     
     if (connected === 'true' && message) {
       setConnectionMessage(message)
+      // Load user's sheets after successful connection
+      loadUserSheets()
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname)
     } else if (error === 'true' && message) {
@@ -454,6 +456,11 @@ export default function TargetAudienceIntelligence() {
           }))
           
           setConnectedSheets(prev => [...prev, ...sheets])
+          
+          // Save sheets to persistent storage
+          for (const sheet of sheets) {
+            await storageService.addConnectedSheet(sheet)
+          }
         }
       }
     } catch (error) {
