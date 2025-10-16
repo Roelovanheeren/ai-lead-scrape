@@ -105,6 +105,7 @@ export default function TargetAudienceIntelligence() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [leadData, setLeadData] = useState<LeadData[]>([])
   const [connectionMessage, setConnectionMessage] = useState('')
+  const [sheetConnectionError, setSheetConnectionError] = useState('')
   const [selectedSheet, setSelectedSheet] = useState<ConnectedSheet | null>(null)
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([])
   const [headerMapping, setHeaderMapping] = useState<Record<string, string>>({})
