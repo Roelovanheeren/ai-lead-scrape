@@ -1075,6 +1075,8 @@ export default function TargetAudienceIntelligence() {
                             <option value="contact_name">Contact Name</option>
                             <option value="email">Email Address</option>
                             <option value="phone">Phone Number</option>
+                            <option value="linkedin_url">LinkedIn URL</option>
+                            <option value="website">Company Website</option>
                             <option value="industry">Industry</option>
                             <option value="location">Location</option>
                             <option value="status">Status</option>
