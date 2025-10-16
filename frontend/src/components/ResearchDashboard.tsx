@@ -113,7 +113,7 @@ export default function ResearchDashboard() {
     try {
       const response = await apiClient.getJobs()
       // Convert JobResponse[] to ResearchJob[]
-      const researchJobs: ResearchJob[] = response.map((job: any) => ({
+      const researchJobs: ResearchJob[] = response.jobs.map((job: any) => ({
         id: job.job_id || job.id,
         name: job.prompt || 'Research Job',
         status: job.status || 'draft',

@@ -90,8 +90,8 @@ class ApiClient {
     })
   }
 
-  async getJobs(): Promise<JobResponse[]> {
-    return this.request<JobResponse[]>('/jobs/')
+  async getJobs(): Promise<{jobs: JobResponse[]}> {
+    return this.request<{jobs: JobResponse[]}>('/jobs/')
   }
 
   async getJobStatus(jobId: string): Promise<JobResponse> {
