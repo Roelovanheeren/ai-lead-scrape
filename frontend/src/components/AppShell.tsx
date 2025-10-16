@@ -15,7 +15,9 @@ import {
   Menu,
   X,
   Search,
-  Target
+  Target,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -38,6 +40,7 @@ const navigation = [
 
 export default function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [notifications] = useState(3) // Mock notification count
 
@@ -59,9 +62,10 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-card/90 backdrop-blur border-r border-white/10",
+          "fixed inset-y-0 left-0 z-50 bg-card/90 backdrop-blur border-r border-white/10 transition-all duration-300",
           "lg:translate-x-0 lg:static lg:z-auto",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:block"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:block",
+          sidebarCollapsed ? "w-16" : "w-64"
         )}
       >
         <div className="flex h-full flex-col">
@@ -71,18 +75,30 @@ export default function AppShell({ children }: AppShellProps) {
               <div className="h-8 w-8 rounded-lg bg-brand flex items-center justify-center">
                 <Zap className="h-5 w-5 text-white" />
               </div>
-              <span className="font-heading font-semibold text-lg text-brand">
-                Elvision Foundations
-              </span>
+              {!sidebarCollapsed && (
+                <span className="font-heading font-semibold text-lg text-brand">
+                  Elvision Foundations
+                </span>
+              )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:flex"
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              >
+                {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
 
           {/* Navigation */}
@@ -93,10 +109,14 @@ export default function AppShell({ children }: AppShellProps) {
                 <a
                   key={item.name}
                   href={item.href}
-                  className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-white/5 hover:text-foreground transition-colors"
+                  className={cn(
+                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-white/5 hover:text-foreground transition-colors",
+                    sidebarCollapsed ? "justify-center" : ""
+                  )}
+                  title={sidebarCollapsed ? item.name : undefined}
                 >
                   <Icon className="h-5 w-5" />
-                  {item.name}
+                  {!sidebarCollapsed && item.name}
                 </a>
               )
             })}
@@ -104,21 +124,23 @@ export default function AppShell({ children }: AppShellProps) {
 
           {/* User section */}
           <div className="border-t border-white/10 p-4">
-            <div className="flex items-center gap-3">
+            <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center" : "")}>
               <div className="h-8 w-8 rounded-full bg-brand/20 flex items-center justify-center">
                 <User className="h-4 w-4 text-brand" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">John Doe</p>
-                <p className="text-xs text-muted truncate">john@elvision.com</p>
-              </div>
+              {!sidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">John Doe</p>
+                  <p className="text-xs text-muted truncate">john@elvision.com</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className={cn("transition-all duration-300", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64")}>
         {/* Header */}
         <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 border-b border-white/10 bg-card/60 backdrop-blur">
           <div className="flex items-center gap-4">
