@@ -1,0 +1,527 @@
+import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { apiClient, JobCreate } from '@/lib/api'
+import { 
+  Target, 
+  Settings, 
+  FileText, 
+  ArrowRight, 
+  ArrowLeft,
+  Check,
+  Plus,
+  X,
+  Search,
+  Filter,
+  Users,
+  Building,
+  MapPin
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+
+interface JobWizardProps {
+  onClose: () => void
+}
+
+const steps = [
+  { id: 1, title: 'Targeting', icon: Target },
+  { id: 2, title: 'Quality & Sources', icon: Settings },
+  { id: 3, title: 'Prompt & Output', icon: FileText },
+]
+
+const industryOptions = [
+  'Technology', 'Healthcare', 'Finance', 'Manufacturing', 'Retail', 'Education',
+  'Real Estate', 'Automotive', 'Energy', 'Telecommunications', 'Media', 'Other'
+]
+
+const locationOptions = [
+  'United States', 'Canada', 'United Kingdom', 'Germany', 'France', 'Australia',
+  'Netherlands', 'Sweden', 'Norway', 'Denmark', 'Other'
+]
+
+const companySizeOptions = [
+  'Startup (1-10)', 'Small (11-50)', 'Medium (51-200)', 'Large (201-1000)', 'Enterprise (1000+)'
+]
+
+const promptChips = [
+  'CFO tone', 'Exclude vendors', 'Prioritize recent funding', 'Human-verified contacts',
+  'Decision makers only', 'Series A+ companies', 'High-growth startups', 'Enterprise focus'
+]
+
+export default function JobWizard({ onClose }: JobWizardProps) {
+  const [currentStep, setCurrentStep] = useState(1)
+  const [formData, setFormData] = useState({
+    // Step 1: Targeting
+    industry: '',
+    location: '',
+    companySize: '',
+    keywords: [] as string[],
+    excludeKeywords: [] as string[],
+    
+    // Step 2: Quality & Sources
+    qualityThreshold: 0.8,
+    dataSources: {
+      googleSearch: true,
+      linkedin: true,
+      companyWebsites: true,
+      apollo: false,
+      clearbit: false,
+    },
+    verificationLevel: 'standard',
+    
+    // Step 3: Prompt & Output
+    prompt: '',
+    selectedChips: [] as string[],
+    targetCount: 100,
+    outputFormat: 'detailed',
+  })
+
+  const [keywordInput, setKeywordInput] = useState('')
+  const [excludeKeywordInput, setExcludeKeywordInput] = useState('')
+
+  const addKeyword = (keyword: string) => {
+    if (keyword.trim() && !formData.keywords.includes(keyword.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        keywords: [...prev.keywords, keyword.trim()]
+      }))
+    }
+  }
+
+  const removeKeyword = (keyword: string) => {
+    setFormData(prev => ({
+      ...prev,
+      keywords: prev.keywords.filter(k => k !== keyword)
+    }))
+  }
+
+  const addExcludeKeyword = (keyword: string) => {
+    if (keyword.trim() && !formData.excludeKeywords.includes(keyword.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        excludeKeywords: [...prev.excludeKeywords, keyword.trim()]
+      }))
+    }
+  }
+
+  const removeExcludeKeyword = (keyword: string) => {
+    setFormData(prev => ({
+      ...prev,
+      excludeKeywords: prev.excludeKeywords.filter(k => k !== keyword)
+    }))
+  }
+
+  const toggleChip = (chip: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedChips: prev.selectedChips.includes(chip)
+        ? prev.selectedChips.filter(c => c !== chip)
+        : [...prev.selectedChips, chip]
+    }))
+  }
+
+  const nextStep = () => {
+    if (currentStep < 3) {
+      setCurrentStep(prev => prev + 1)
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1)
+    }
+  }
+
+  const handleSubmit = async () => {
+    try {
+      const jobData: JobCreate = {
+        prompt: formData.prompt,
+        target_count: formData.targetCount,
+        quality_threshold: formData.qualityThreshold,
+        industry: formData.industry,
+        location: formData.location,
+        company_size: formData.companySize,
+        keywords: formData.keywords,
+        exclude_keywords: formData.excludeKeywords,
+        data_sources: formData.dataSources,
+        verification_level: formData.verificationLevel as 'basic' | 'standard' | 'premium',
+        output_format: formData.outputFormat as 'basic' | 'detailed' | 'comprehensive'
+      }
+      
+      const response = await apiClient.createJob(jobData)
+      console.log('Job created successfully:', response)
+      onClose()
+    } catch (error) {
+      console.error('Failed to create job:', error)
+      // Handle error (show toast notification, etc.)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-card rounded-2xl shadow-glow"
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-card/90 backdrop-blur border-b border-white/10 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Create New Job</h2>
+              <p className="text-muted">Set up your lead generation parameters</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* Stepper */}
+          <div className="flex items-center gap-3 mt-6">
+            {steps.map((step, index) => {
+              const Icon = step.icon
+              const isActive = currentStep === step.id
+              const isCompleted = currentStep > step.id
+              
+              return (
+                <React.Fragment key={step.id}>
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center transition-colors",
+                      isActive ? "bg-brand text-white" : 
+                      isCompleted ? "bg-green-500 text-white" : "bg-white/10 text-muted"
+                    )}>
+                      {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                    </div>
+                    <span className={cn(
+                      "text-sm font-medium",
+                      isActive ? "text-foreground" : "text-muted"
+                    )}>
+                      {step.title}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="w-10 h-px bg-white/10" />
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            {currentStep === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Targeting Parameters</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Industry */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Industry</label>
+                      <select
+                        value={formData.industry}
+                        onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      >
+                        <option value="">Select industry...</option>
+                        {industryOptions.map(industry => (
+                          <option key={industry} value={industry}>{industry}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Location</label>
+                      <select
+                        value={formData.location}
+                        onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      >
+                        <option value="">Select location...</option>
+                        {locationOptions.map(location => (
+                          <option key={location} value={location}>{location}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Company Size */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Company Size</label>
+                      <select
+                        value={formData.companySize}
+                        onChange={(e) => setFormData(prev => ({ ...prev, companySize: e.target.value }))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      >
+                        <option value="">Select company size...</option>
+                        {companySizeOptions.map(size => (
+                          <option key={size} value={size}>{size}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Keywords */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Include Keywords</label>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        placeholder="Add keyword..."
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            addKeyword(keywordInput)
+                            setKeywordInput('')
+                          }
+                        }}
+                      />
+                      <Button onClick={() => {
+                        addKeyword(keywordInput)
+                        setKeywordInput('')
+                      }}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.keywords.map(keyword => (
+                        <Badge key={keyword} variant="secondary" className="flex items-center gap-1">
+                          {keyword}
+                          <X 
+                            className="h-3 w-3 cursor-pointer" 
+                            onClick={() => removeKeyword(keyword)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Exclude Keywords */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Exclude Keywords</label>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        placeholder="Add exclusion keyword..."
+                        value={excludeKeywordInput}
+                        onChange={(e) => setExcludeKeywordInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            addExcludeKeyword(excludeKeywordInput)
+                            setExcludeKeywordInput('')
+                          }
+                        }}
+                      />
+                      <Button onClick={() => {
+                        addExcludeKeyword(excludeKeywordInput)
+                        setExcludeKeywordInput('')
+                      }}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.excludeKeywords.map(keyword => (
+                        <Badge key={keyword} variant="destructive" className="flex items-center gap-1">
+                          {keyword}
+                          <X 
+                            className="h-3 w-3 cursor-pointer" 
+                            onClick={() => removeExcludeKeyword(keyword)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {currentStep === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Quality & Data Sources</h3>
+                  
+                  {/* Quality Threshold */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">
+                      Quality Threshold: {Math.round(formData.qualityThreshold * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={formData.qualityThreshold}
+                      onChange={(e) => setFormData(prev => ({ ...prev, qualityThreshold: parseFloat(e.target.value) }))}
+                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-muted mt-1">
+                      <span>Low (0%)</span>
+                      <span>High (100%)</span>
+                    </div>
+                  </div>
+
+                  {/* Data Sources */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-3">Data Sources</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {Object.entries(formData.dataSources).map(([source, enabled]) => (
+                        <label key={source} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              dataSources: { ...prev.dataSources, [source]: e.target.checked }
+                            }))}
+                            className="rounded border-white/20"
+                          />
+                          <span className="text-sm capitalize">{source.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Verification Level */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Verification Level</label>
+                    <select
+                      value={formData.verificationLevel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, verificationLevel: e.target.value }))}
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                    >
+                      <option value="basic">Basic (Email format check)</option>
+                      <option value="standard">Standard (Email + domain validation)</option>
+                      <option value="premium">Premium (Full verification + deliverability)</option>
+                    </select>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {currentStep === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Prompt & Output Configuration</h3>
+                  
+                  {/* Prompt Chips */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-3">Prompt Enhancements</label>
+                    <div className="flex flex-wrap gap-2">
+                      {promptChips.map(chip => (
+                        <button
+                          key={chip}
+                          onClick={() => toggleChip(chip)}
+                          className={cn(
+                            "px-3 py-1 rounded-full text-sm transition-colors",
+                            formData.selectedChips.includes(chip)
+                              ? "bg-brand text-white"
+                              : "bg-white/5 text-muted hover:bg-white/10"
+                          )}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Main Prompt */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">Research Prompt</label>
+                    <textarea
+                      value={formData.prompt}
+                      onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
+                      placeholder="Describe the research objective... (e.g., 'Find AI startups in California that have raised Series A funding and are looking for enterprise customers')"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted mt-2">
+                      Preview updates in real time as you toggle constraints.
+                    </p>
+                  </div>
+
+                  {/* Target Count */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">Target Lead Count</label>
+                    <Input
+                      type="number"
+                      value={formData.targetCount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, targetCount: parseInt(e.target.value) || 0 }))}
+                      placeholder="100"
+                      className="w-32"
+                    />
+                  </div>
+
+                  {/* Output Format */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Output Format</label>
+                    <select
+                      value={formData.outputFormat}
+                      onChange={(e) => setFormData(prev => ({ ...prev, outputFormat: e.target.value }))}
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                    >
+                      <option value="basic">Basic (Name, Company, Email)</option>
+                      <option value="detailed">Detailed (Full contact info + company details)</option>
+                      <option value="comprehensive">Comprehensive (Full research + outreach suggestions)</option>
+                    </select>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-card/90 backdrop-blur border-t border-white/10 p-6">
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={prevStep} disabled={currentStep === 1}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Previous
+            </Button>
+            
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+              {currentStep === 3 ? (
+                <Button onClick={handleSubmit} className="shadow-glow">
+                  <Check className="h-4 w-4 mr-2" />
+                  Create Job
+                </Button>
+              ) : (
+                <Button onClick={nextStep} className="shadow-glow">
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
