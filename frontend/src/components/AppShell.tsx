@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   LayoutDashboard, 
@@ -24,7 +25,6 @@ import { cn } from '@/lib/utils'
 
 interface AppShellProps {
   children: React.ReactNode
-  onNewJob?: () => void
 }
 
 const navigation = [
@@ -39,7 +39,8 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export default function AppShell({ children, onNewJob }: AppShellProps) {
+export default function AppShell({ children }: AppShellProps) {
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
@@ -186,7 +187,7 @@ export default function AppShell({ children, onNewJob }: AppShellProps) {
             </Button>
 
             {/* New Job Button */}
-            <Button className="shadow-glow" onClick={onNewJob}>
+            <Button className="shadow-glow" onClick={() => navigate('/new-job')}>
               <Briefcase className="h-4 w-4 mr-2" />
               New Job
             </Button>

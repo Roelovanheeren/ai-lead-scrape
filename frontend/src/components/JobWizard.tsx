@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient, JobCreate } from '@/lib/api'
 import { storageService } from '@/lib/storage'
@@ -30,9 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
-interface JobWizardProps {
-  onClose: () => void
-}
+interface JobWizardProps {}
 
 const steps = [
   { id: 1, title: 'Knowledge Base', icon: BookOpen },
@@ -60,7 +59,8 @@ const promptChips = [
   'Decision makers only', 'Series A+ companies', 'High-growth startups', 'Enterprise focus'
 ]
 
-export default function JobWizard({ onClose }: JobWizardProps) {
+export default function JobWizard({}: JobWizardProps) {
+  const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([])
   const [activeConnectedSheet, setActiveConnectedSheet] = useState<any>(null)
@@ -227,7 +227,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
       
       const response = await apiClient.createJob(jobData)
       console.log('Job created successfully:', response)
-      onClose()
+      navigate('/jobs')
     } catch (error) {
       console.error('Failed to create job:', error)
       // Handle error (show toast notification, etc.)
@@ -235,12 +235,8 @@ export default function JobWizard({ onClose }: JobWizardProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-card rounded-2xl shadow-glow"
+    <div className="min-h-screen bg-background">
+      <div className="w-full max-w-6xl mx-auto bg-card rounded-2xl shadow-glow"
       >
         {/* Header */}
         <div className="sticky top-0 bg-card/90 backdrop-blur border-b border-white/10 p-6">
@@ -249,7 +245,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
               <h2 className="text-2xl font-bold">Create New Job</h2>
               <p className="text-muted">Set up your lead generation parameters</p>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')}>
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -639,16 +635,16 @@ export default function JobWizard({ onClose }: JobWizardProps) {
 
                   {/* Main Prompt */}
                   <div className="mb-6">
-                    <label className="block text-sm font-medium mb-2">Research Prompt</label>
+                    <label className="block text-sm font-medium mb-2">What do you want to target?</label>
                     <textarea
                       value={formData.prompt}
                       onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
-                      placeholder="Describe the research objective... (e.g., 'Find AI startups in California that have raised Series A funding and are looking for enterprise customers')"
-                      className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-                      rows={4}
+                      placeholder="Describe what you want to target... (e.g., 'Find AI startups in California that have raised Series A funding and are looking for enterprise customers')"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 min-h-[120px]"
+                      rows={5}
                     />
                     <p className="text-xs text-muted mt-2">
-                      Preview updates in real time as you toggle constraints.
+                      Be specific about your target audience, industry, location, and any other criteria.
                     </p>
                   </div>
 
@@ -692,7 +688,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
             </Button>
             
             <div className="flex items-center gap-3">
-              <Button variant="ghost" onClick={onClose}>
+              <Button variant="ghost" onClick={() => navigate('/jobs')}>
                 Cancel
               </Button>
               {currentStep === 4 ? (
@@ -709,7 +705,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
