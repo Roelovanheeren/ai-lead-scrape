@@ -303,11 +303,13 @@ async def export_to_google_sheets(job_id: str, leads: list, job_data: dict):
     except Exception as e:
         logger.error(f"Failed to export to Google Sheets: {e}")
 
+logger.info("🔧 Creating FastAPI app...")
 app = FastAPI(
     title="AI Lead Generation Platform",
     description="Automated lead discovery, research, and outreach generation",
     version="2.0.0"
 )
+logger.info("✅ FastAPI app created successfully")
 
 # CORS middleware
 app.add_middleware(
@@ -336,18 +338,23 @@ if os.path.exists("/app/frontend/dist"):
 @app.get("/")
 async def root():
     """Root endpoint - serve React app or API info"""
+    logger.info("🔍 Root endpoint called!")
     try:
         # Always return a simple health check response first
         # This ensures Railway health checks pass
-        return {
+        response = {
             "status": "ok",
             "message": "AI Lead Generation Platform API", 
             "version": "2.0.0",
             "health": "healthy",
             "timestamp": datetime.utcnow().isoformat()
         }
+        logger.info(f"✅ Root endpoint returning: {response}")
+        return response
     except Exception as e:
-        logger.error(f"Root endpoint error: {e}")
+        logger.error(f"❌ Root endpoint error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return {
             "status": "error",
             "message": "API Error", 
@@ -370,10 +377,15 @@ async def serve_react_app():
 @app.get("/ping")
 async def ping():
     """Simple ping endpoint for health checks"""
+    logger.info("🔍 Ping endpoint called!")
     try:
-        return {"status": "ok", "message": "pong", "timestamp": datetime.utcnow().isoformat()}
+        response = {"status": "ok", "message": "pong", "timestamp": datetime.utcnow().isoformat()}
+        logger.info(f"✅ Ping endpoint returning: {response}")
+        return response
     except Exception as e:
-        logger.error(f"Ping error: {e}")
+        logger.error(f"❌ Ping error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/api")
@@ -515,5 +527,8 @@ if __name__ == "__main__":
     logger.info(f"🔧 Real research available: {REAL_RESEARCH_AVAILABLE}")
     logger.info(f"🔧 OAuth routes available: {OAUTH_ROUTES_AVAILABLE}")
     logger.info(f"🔧 Google Sheets routes available: {SHEETS_ROUTES_AVAILABLE}")
+    logger.info(f"🔧 Total routes: {len(app.routes)}")
+    logger.info(f"🔧 Route paths: {[route.path for route in app.routes if hasattr(route, 'path')]}")
+    logger.info("✅ App configuration complete!")
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
