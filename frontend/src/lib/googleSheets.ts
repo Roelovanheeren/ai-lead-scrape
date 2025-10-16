@@ -1,7 +1,9 @@
 /**
  * Google Sheets API Integration
- * Handles reading and writing to Google Sheets
+ * Handles reading and writing to Google Sheets with real authentication
  */
+
+import { googleAuthService, GoogleSheet } from './googleAuth'
 
 export interface GoogleSheetData {
   id: string
@@ -18,14 +20,8 @@ export interface GoogleSheetRow {
 }
 
 class GoogleSheetsService {
-  private apiKey: string = ''
-  private clientId: string = ''
-
   constructor() {
-    // These would be set from environment variables in production
-    // For now, we'll use empty strings since we're using mock data
-    this.apiKey = ''
-    this.clientId = ''
+    // Authentication is handled by googleAuthService
   }
 
   /**
@@ -46,13 +42,43 @@ class GoogleSheetsService {
         throw new Error('Invalid Google Sheets URL')
       }
 
-      // For now, we'll use a mock implementation
-      // In production, this would use the Google Sheets API
-      const mockData = await this.mockSheetData(sheetId)
-      return mockData
+      // Check if user is signed in
+      if (!googleAuthService.isUserSignedIn()) {
+        throw new Error('User must be signed in to access Google Sheets')
+      }
+
+      // Get sheet data using the real Google Sheets API
+      const rawData = await googleAuthService.getSheetData(sheetId)
+      
+      if (!rawData || rawData.length === 0) {
+        throw new Error('No data found in the sheet')
+      }
+
+      // First row contains headers
+      const headers = rawData[0]
+      const rows = rawData.slice(1)
+
+      // Convert rows to objects
+      const data = rows.map(row => {
+        const obj: any = {}
+        headers.forEach((header, index) => {
+          obj[header] = row[index] || ''
+        })
+        return obj
+      })
+
+      return {
+        id: sheetId,
+        name: `Sheet ${sheetId}`, // We could get the actual name from the API
+        url: sheetUrl,
+        lastSync: new Date(),
+        columns: headers,
+        data: data,
+        isConnected: true
+      }
     } catch (error) {
       console.error('Error reading Google Sheet:', error)
-      return null
+      throw error
     }
   }
 

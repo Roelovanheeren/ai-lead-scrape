@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Upload, 
@@ -25,15 +25,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { googleSheetsService, GoogleSheetData } from '@/lib/googleSheets'
+import { storageService, ConnectedSheet, UploadedDocument, AudienceProfile, ChatMessage } from '@/lib/storage'
 
-interface UploadedDocument {
-  id: string
-  name: string
-  size: number
-  type: string
-  content?: string
-  uploadedAt: Date
-}
+// UploadedDocument interface is now imported from storage service
 
 interface ChatMessage {
   id: string
@@ -136,24 +130,67 @@ export default function TargetAudienceIntelligence() {
   const [leadData, setLeadData] = useState<LeadData[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Load persisted data on component mount
+  useEffect(() => {
+    const loadPersistedData = async () => {
+      try {
+        // Load connected sheets
+        const sheets = await storageService.getConnectedSheets()
+        setConnectedSheets(sheets)
+
+        // Load uploaded documents
+        const documents = await storageService.getUploadedDocuments()
+        setUploadedDocuments(documents)
+
+        // Load audience profiles
+        const profiles = await storageService.getAudienceProfiles()
+        if (profiles.length > 0) {
+          setAudienceProfile(profiles[0]) // Use the first profile for now
+        }
+
+        // Load chat history
+        const chatHistory = await storageService.getChatHistory()
+        setChatMessages(chatHistory)
+      } catch (error) {
+        console.error('Failed to load persisted data:', error)
+      }
+    }
+
+    loadPersistedData()
+  }, [])
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files) return
 
-    Array.from(files).forEach(file => {
+    for (const file of Array.from(files)) {
       const newDoc: UploadedDocument = {
         id: Math.random().toString(36).substr(2, 9),
         name: file.name,
         size: file.size,
         type: file.type,
-        uploadedAt: new Date()
+        content: '', // We'll extract text content later
+        uploadedAt: new Date().toISOString(),
+        processed: false
       }
-      setUploadedDocs(prev => [...prev, newDoc])
-    })
+
+      // Save to persistent storage
+      try {
+        await storageService.addUploadedDocument(newDoc)
+        setUploadedDocs(prev => [...prev, newDoc])
+      } catch (error) {
+        console.error('Failed to save uploaded document:', error)
+      }
+    }
   }
 
-  const removeDocument = (id: string) => {
-    setUploadedDocs(prev => prev.filter(doc => doc.id !== id))
+  const removeDocument = async (id: string) => {
+    try {
+      await storageService.removeUploadedDocument(id)
+      setUploadedDocs(prev => prev.filter(doc => doc.id !== id))
+    } catch (error) {
+      console.error('Failed to remove document:', error)
+    }
   }
 
   const sendMessage = async () => {
@@ -161,24 +198,39 @@ export default function TargetAudienceIntelligence() {
 
     const userMessage: ChatMessage = {
       id: Math.random().toString(36).substr(2, 9),
-      type: 'user',
+      role: 'user',
       content: currentMessage,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     }
 
-    setChatMessages(prev => [...prev, userMessage])
+    // Save user message to persistent storage
+    try {
+      await storageService.addChatMessage(userMessage)
+      setChatMessages(prev => [...prev, userMessage])
+    } catch (error) {
+      console.error('Failed to save user message:', error)
+    }
+
     setCurrentMessage('')
     setIsTyping(true)
 
     // Simulate AI response
-    setTimeout(() => {
+    setTimeout(async () => {
       const aiResponse: ChatMessage = {
         id: Math.random().toString(36).substr(2, 9),
-        type: 'ai',
+        role: 'assistant',
         content: generateAIResponse(currentMessage),
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }
-      setChatMessages(prev => [...prev, aiResponse])
+
+      // Save AI response to persistent storage
+      try {
+        await storageService.addChatMessage(aiResponse)
+        setChatMessages(prev => [...prev, aiResponse])
+      } catch (error) {
+        console.error('Failed to save AI response:', error)
+      }
+
       setIsTyping(false)
     }, 1500)
   }
@@ -243,18 +295,31 @@ export default function TargetAudienceIntelligence() {
       const sheetData = await googleSheetsService.readSheetData(newSheetUrl)
       
       if (sheetData) {
-        const newSheet: GoogleSheet = {
+        const newSheet: ConnectedSheet = {
           id: sheetData.id,
           name: sheetData.name,
           url: sheetData.url,
+          lastSync: sheetData.lastSync.toISOString(),
           columns: sheetData.columns,
-          lastSync: sheetData.lastSync,
-          isConnected: sheetData.isConnected
+          rowCount: sheetData.data.length,
+          isConnected: sheetData.isConnected,
+          permissions: {
+            canRead: true,
+            canWrite: false,
+            canShare: false
+          }
         }
         
-        setConnectedSheets(prev => [...prev, newSheet])
-        setNewSheetUrl('')
-        setIsConnectingSheet(false)
+        // Save to persistent storage
+        try {
+          await storageService.addConnectedSheet(newSheet)
+          setConnectedSheets(prev => [...prev, newSheet])
+          setNewSheetUrl('')
+          setIsConnectingSheet(false)
+        } catch (error) {
+          console.error('Failed to save connected sheet:', error)
+          setIsConnectingSheet(false)
+        }
       } else {
         throw new Error('Failed to connect to Google Sheet')
       }
