@@ -14,6 +14,7 @@ import uuid
 import os
 
 # Import routes
+from routes.google_oauth_routes import router as google_oauth_router
 from routes.google_sheets_routes import router as google_sheets_router
 # from routes.makecom_routes import router as makecom_router
 # from routes.ai_chat_routes import router as ai_chat_router
@@ -38,6 +39,7 @@ app.add_middleware(
 )
 
 # Include routes
+app.include_router(google_oauth_router)
 app.include_router(google_sheets_router)
 # app.include_router(makecom_router)
 # app.include_router(ai_chat_router)

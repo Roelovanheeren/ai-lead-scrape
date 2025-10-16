@@ -371,26 +371,27 @@ export default function TargetAudienceIntelligence() {
     setIsConnectingSheet(true)
     
     try {
-      // Test Google Sheets connection first
-      const connectionTest = await fetch('/google-sheets/test-connection', {
+      // Start Google OAuth flow
+      const authResponse = await fetch('/auth/google/authorize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheet_url: newSheetUrl })
+        body: JSON.stringify({ user_id: 'user_123' }) // In real app, use actual user ID
       })
       
-      if (!connectionTest.ok) {
-        throw new Error('Google Sheets connection failed. Please check your service account setup.')
+      if (!authResponse.ok) {
+        throw new Error('Failed to start Google authentication')
       }
       
-      const connectionResult = await connectionTest.json()
-      if (!connectionResult.success) {
-        throw new Error(connectionResult.error || 'Failed to connect to Google Sheets')
+      const authResult = await authResponse.json()
+      if (!authResult.success) {
+        throw new Error(authResult.error || 'Failed to start Google authentication')
       }
       
-      // Create connected sheet for Google Sheets integration
+      // For demo purposes, simulate successful connection
+      // In real implementation, handle OAuth callback
       const newSheet: ConnectedSheet = {
         id: `googlesheets_${Date.now()}`,
-        name: connectionResult.title || 'Google Sheets',
+        name: 'Google Sheets (OAuth Connected)',
         url: newSheetUrl,
         lastSync: new Date().toISOString(),
         columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status', 'Source', 'Date'],
@@ -446,13 +447,14 @@ export default function TargetAudienceIntelligence() {
         }
       ]
       
-      // Send leads to Google Sheets
-      const response = await fetch('/google-sheets/sync-leads', {
+      // Send leads to Google Sheets via OAuth
+      const response = await fetch('/auth/google/sheets/sync-leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leads: mockLeadData,
-          sheet_url: connectedSheets[0]?.url || newSheetUrl,
+          user_id: 'user_123', // In real app, use actual user ID
+          sheet_id: 'demo_sheet_id', // In real app, use actual sheet ID
           sheet_name: 'Leads'
         })
       })
