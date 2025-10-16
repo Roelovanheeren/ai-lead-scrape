@@ -69,6 +69,9 @@ export default function TargetAudienceIntelligence() {
   const [currentMessage, setCurrentMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [audienceProfile, setAudienceProfile] = useState<StorageAudienceProfile>({
+    id: 'default',
+    name: 'Default Profile',
+    description: 'Default audience profile',
     demographics: {
       ageRange: '',
       gender: '',
@@ -91,7 +94,9 @@ export default function TargetAudienceIntelligence() {
       channels: [],
       content: [],
       timing: ''
-    }
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   })
   const [isGeneratingProfile, setIsGeneratingProfile] = useState(false)
   const [connectedSheets, setConnectedSheets] = useState<ConnectedSheet[]>([])
@@ -494,18 +499,18 @@ export default function TargetAudienceIntelligence() {
                   {chatMessages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          message.type === 'user'
+                          message.role === 'user'
                             ? 'bg-brand text-white'
                             : 'bg-card border border-white/10 text-foreground'
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
                         <p className="text-xs opacity-70 mt-1">
-                          {message.timestamp.toLocaleTimeString()}
+                          {new Date(message.timestamp).toLocaleTimeString()}
                         </p>
                       </div>
                     </div>
