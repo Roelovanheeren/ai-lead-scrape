@@ -103,7 +103,8 @@ class StorageService {
     AUDIENCE_PROFILES: 'elvision_audience_profiles',
     CHAT_HISTORY: 'elvision_chat_history',
     APP_SETTINGS: 'elvision_app_settings',
-    HEADER_MAPPINGS: 'elvision_header_mappings'
+    HEADER_MAPPINGS: 'elvision_header_mappings',
+    ACTIVE_CONNECTED_SHEET: 'elvision_active_connected_sheet'
   }
 
   // User Profile Management
@@ -380,6 +381,35 @@ class StorageService {
     } catch (error) {
       console.error('Failed to get header mapping by sheet ID:', error)
       return null
+    }
+  }
+
+  // Active Connected Sheet Management
+  async setActiveConnectedSheet(sheet: ConnectedSheet): Promise<void> {
+    try {
+      localStorage.setItem(this.STORAGE_KEYS.ACTIVE_CONNECTED_SHEET, JSON.stringify(sheet))
+    } catch (error) {
+      console.error('Failed to save active connected sheet:', error)
+      throw error
+    }
+  }
+
+  async getActiveConnectedSheet(): Promise<ConnectedSheet | null> {
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEYS.ACTIVE_CONNECTED_SHEET)
+      return data ? JSON.parse(data) : null
+    } catch (error) {
+      console.error('Failed to get active connected sheet:', error)
+      return null
+    }
+  }
+
+  async clearActiveConnectedSheet(): Promise<void> {
+    try {
+      localStorage.removeItem(this.STORAGE_KEYS.ACTIVE_CONNECTED_SHEET)
+    } catch (error) {
+      console.error('Failed to clear active connected sheet:', error)
+      throw error
     }
   }
 }

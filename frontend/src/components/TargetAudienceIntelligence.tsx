@@ -111,6 +111,7 @@ export default function TargetAudienceIntelligence() {
   const [headerMapping, setHeaderMapping] = useState<Record<string, string>>({})
   const [isLoadingHeaders, setIsLoadingHeaders] = useState(false)
   const [isMappingHeaders, setIsMappingHeaders] = useState(false)
+  const [activeConnectedSheet, setActiveConnectedSheet] = useState<ConnectedSheet | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Handle URL parameters for OAuth callback
@@ -138,6 +139,12 @@ export default function TargetAudienceIntelligence() {
         // Load connected sheets
         const sheets = await storageService.getConnectedSheets()
         setConnectedSheets(sheets)
+        
+        // Load active connected sheet
+        const activeSheet = await storageService.getActiveConnectedSheet()
+        if (activeSheet) {
+          setActiveConnectedSheet(activeSheet)
+        }
 
         // Load uploaded documents
         const documents = await storageService.getUploadedDocuments()
@@ -514,6 +521,12 @@ export default function TargetAudienceIntelligence() {
       // Save to persistent storage
       await storageService.saveHeaderMapping(mappingData)
       
+      // Set as active connected sheet
+      if (selectedSheet) {
+        await storageService.setActiveConnectedSheet(selectedSheet)
+        setActiveConnectedSheet(selectedSheet)
+      }
+      
       console.log('Header mapping saved:', mappingData)
       setConnectionMessage('Sheet configuration saved successfully!')
       
@@ -528,6 +541,17 @@ export default function TargetAudienceIntelligence() {
       setSheetConnectionError('Failed to save sheet configuration')
     } finally {
       setIsMappingHeaders(false)
+    }
+  }
+
+  const disconnectActiveSheet = async () => {
+    try {
+      await storageService.clearActiveConnectedSheet()
+      setActiveConnectedSheet(null)
+      setConnectionMessage('Sheet disconnected successfully!')
+    } catch (error) {
+      console.error('Error disconnecting sheet:', error)
+      setSheetConnectionError('Failed to disconnect sheet')
     }
   }
 
@@ -1011,8 +1035,47 @@ export default function TargetAudienceIntelligence() {
               </div>
             )}
 
+            {/* Active Connected Sheet */}
+            {activeConnectedSheet && (
+              <Card className="shadow-glow">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-400" />
+                      Active Connected Sheet
+                    </div>
+                    <Button 
+                      onClick={disconnectActiveSheet}
+                      variant="outline"
+                      size="sm"
+                      className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Disconnect
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-3 p-4 bg-card/50 rounded-lg border border-white/10">
+                    <div className="p-2 bg-teal-500/20 rounded-lg">
+                      <Table className="h-5 w-5 text-teal-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium">{activeConnectedSheet.name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Last synced: {new Date(activeConnectedSheet.lastSync).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-green-400 mt-1">
+                        ✓ Configured and ready for lead data synchronization
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Sheet Selection */}
-            {connectedSheets.length > 0 && !selectedSheet && (
+            {connectedSheets.length > 0 && !selectedSheet && !activeConnectedSheet && (
               <Card className="shadow-glow">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
