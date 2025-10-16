@@ -216,6 +216,18 @@ async def create_job(job_data: dict):
         job_id = str(uuid.uuid4())
         logger.info(f"Creating job {job_id} with prompt: {job_data.get('prompt', 'N/A')}")
         
+        # Store job immediately in job_storage
+        job_storage[job_id] = {
+            "id": job_id,
+            "status": "started",
+            "progress": 0,
+            "message": "Job started successfully. Web scraping is now in progress.",
+            "created_at": datetime.utcnow().isoformat(),
+            "prompt": job_data.get("prompt", ""),
+            "target_count": job_data.get("target_count", 10),
+            "quality_threshold": job_data.get("quality_threshold", 0.8)
+        }
+        
         # Start the job processing in the background
         import asyncio
         asyncio.create_task(process_job_background(job_id, job_data))
@@ -236,13 +248,27 @@ async def create_job(job_data: dict):
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: str):
     """Get job status"""
-    if job_id in job_storage:
-        return job_storage[job_id]
-    else:
+    try:
+        logger.info(f"Getting job status for job_id: {job_id}")
+        logger.info(f"Available jobs in storage: {list(job_storage.keys())}")
+        
+        if job_id in job_storage:
+            job_data = job_storage[job_id]
+            logger.info(f"Found job {job_id}: {job_data.get('status', 'unknown')}")
+            return job_data
+        else:
+            logger.warning(f"Job {job_id} not found in storage")
+            return {
+                "id": job_id,
+                "status": "not_found",
+                "message": "Job not found"
+            }
+    except Exception as e:
+        logger.error(f"Error getting job {job_id}: {str(e)}")
         return {
             "id": job_id,
-            "status": "not_found",
-            "message": "Job not found"
+            "status": "error",
+            "message": f"Error retrieving job: {str(e)}"
         }
 
 @app.get("/jobs/")
