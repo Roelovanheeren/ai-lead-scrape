@@ -16,7 +16,7 @@ function App() {
       <div className="min-h-screen bg-background text-foreground">
         <AppShell>
           <Routes>
-            <Route path="/" element={<TestAppShell />} />
+            <Route path="/" element={<ResearchDashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/research" element={<ResearchDashboard />} />
             <Route path="/leads" element={<LeadsTable />} />
