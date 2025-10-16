@@ -34,6 +34,13 @@ class GoogleOAuthService:
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive.readonly'
         ]
+        
+        # Log configuration status
+        logger.info(f"Google OAuth Service initialized:")
+        logger.info(f"  - Client ID: {'Set' if self.client_id else 'Not set'}")
+        logger.info(f"  - Client Secret: {'Set' if self.client_secret else 'Not set'}")
+        logger.info(f"  - Redirect URI: {self.redirect_uri}")
+        logger.info(f"  - OAuth Available: {GOOGLE_OAUTH_AVAILABLE}")
         logger.info(f"OAuth scopes configured: {self.scopes}")
         
         # In-memory storage for demo (use Redis/DB in production)
@@ -130,8 +137,10 @@ class GoogleOAuthService:
             self.user_credentials[user_id] = {
                 'credentials': credentials,
                 'connected_at': datetime.now(),
-                'expires_at': datetime.now() + timedelta(hours=1)  # Refresh token expires
+                'expires_at': datetime.now() + timedelta(hours=24)  # Extend expiration
             }
+            
+            logger.info(f"Stored credentials for user {user_id}, expires at: {self.user_credentials[user_id]['expires_at']}")
             
             return {
                 "success": True,
@@ -188,11 +197,15 @@ class GoogleOAuthService:
     def read_sheet_data(self, user_id: str, sheet_id: str, range_name: str = None) -> Dict[str, Any]:
         """Read data from user's Google Sheet"""
         try:
+            logger.info(f"Reading sheet data for user_id: {user_id}, sheet_id: {sheet_id}")
+            
             if not GOOGLE_OAUTH_AVAILABLE:
+                logger.error("Google OAuth not available")
                 return {"success": False, "error": "Google OAuth not available"}
             
             credentials = self._get_user_credentials(user_id)
             if not credentials:
+                logger.error(f"No credentials found for user_id: {user_id}")
                 return {"success": False, "error": "User not authenticated"}
             
             # Build Sheets service
@@ -302,7 +315,11 @@ class GoogleOAuthService:
     
     def _get_user_credentials(self, user_id: str) -> Optional[Credentials]:
         """Get user's stored credentials"""
+        logger.info(f"Looking for credentials for user_id: {user_id}")
+        logger.info(f"Available user credentials: {list(self.user_credentials.keys())}")
+        
         if user_id not in self.user_credentials:
+            logger.warning(f"User {user_id} not found in credentials store")
             return None
         
         user_data = self.user_credentials[user_id]
