@@ -34,6 +34,7 @@ class GoogleOAuthService:
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive.readonly'
         ]
+        logger.info(f"OAuth scopes configured: {self.scopes}")
         
         # In-memory storage for demo (use Redis/DB in production)
         self.user_credentials = {}
@@ -73,9 +74,10 @@ class GoogleOAuthService:
             # Get authorization URL
             auth_url, _ = flow.authorization_url(
                 access_type='offline',
-                include_granted_scopes='true',
                 state=state
             )
+            
+            logger.info(f"Generated auth URL with scopes: {self.scopes}")
             
             return {
                 "success": True,
@@ -119,8 +121,10 @@ class GoogleOAuthService:
             flow.redirect_uri = self.redirect_uri
             
             # Exchange code for credentials
+            logger.info(f"Exchanging code for token with scopes: {self.scopes}")
             flow.fetch_token(code=code)
             credentials = flow.credentials
+            logger.info(f"Successfully obtained credentials for user {user_id}")
             
             # Store credentials for user
             self.user_credentials[user_id] = {
