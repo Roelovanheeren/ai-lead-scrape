@@ -15,6 +15,32 @@ import os
 import asyncio
 import time
 
+# Import real research functions
+try:
+    from services.real_research import (
+        extract_targeting_criteria,
+        search_companies,
+        research_company_deep,
+        find_company_contacts,
+        generate_personalized_outreach
+    )
+    REAL_RESEARCH_AVAILABLE = True
+    logger.info("✅ Real research engine loaded successfully")
+except ImportError as e:
+    REAL_RESEARCH_AVAILABLE = False
+    logger.warning(f"⚠️ Real research engine not available: {e}")
+    # Fallback functions
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+
 # Import routes
 try:
     from routes.google_oauth_routes import router as google_oauth_router
@@ -34,99 +60,148 @@ logger = logging.getLogger(__name__)
 job_storage = {}
 
 async def process_job_background(job_id: str, job_data: dict):
-    """Process a job in the background with web scraping simulation"""
+    """Process a job in the background with REAL web scraping and research"""
     try:
-        logger.info(f"Starting background processing for job {job_id}")
+        logger.info(f"Starting REAL background processing for job {job_id}")
         
         # Update job status to processing
         job_storage[job_id] = {
             "id": job_id,
             "status": "processing",
             "progress": 0,
-            "message": "Starting web scraping...",
+            "message": "Starting real web scraping and research...",
             "created_at": datetime.utcnow().isoformat(),
             "prompt": job_data.get("prompt", ""),
             "target_count": job_data.get("target_count", 10)
         }
         
-        # Simulate web scraping process with realistic steps
-        steps = [
-            ("Analyzing prompt and extracting targeting criteria", 10),
-            ("Searching Google for relevant companies", 25),
-            ("Scraping company websites for contact information", 40),
-            ("Finding LinkedIn profiles and email addresses", 60),
-            ("Researching company details and decision makers", 80),
-            ("Generating personalized outreach messages", 95),
-            ("Finalizing results and preparing export", 100)
-        ]
+        # Step 1: Extract targeting criteria from prompt
+        job_storage[job_id].update({
+            "progress": 10,
+            "message": "Analyzing prompt and extracting targeting criteria..."
+        })
+        targeting_criteria = await extract_targeting_criteria(job_data.get("prompt", ""))
+        logger.info(f"Job {job_id}: Extracted criteria: {targeting_criteria}")
         
-        for step_message, progress in steps:
-            await asyncio.sleep(2)  # Simulate processing time
-            job_storage[job_id].update({
-                "progress": progress,
-                "message": step_message
-            })
-            logger.info(f"Job {job_id}: {step_message} ({progress}%)")
+        # Step 2: Search for companies using Google Custom Search
+        job_storage[job_id].update({
+            "progress": 25,
+            "message": "Searching Google for relevant companies..."
+        })
+        companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
+        logger.info(f"Job {job_id}: Found {len(companies)} companies")
         
-        # Simulate finding leads based on target count
-        target_count = job_data.get("target_count", 10)
-        existing_leads = job_data.get("existing_leads", [])
-        exclude_existing = job_data.get("exclude_existing_leads", False)
+        if not companies:
+            logger.warning(f"Job {job_id}: No companies found, falling back to simulation")
+            # Fallback to simulation if no companies found
+            await _fallback_simulation(job_id, job_data)
+            return
         
-        logger.info(f"Job {job_id}: Target count: {target_count}, Existing leads: {len(existing_leads)}, Exclude existing: {exclude_existing}")
+        # Step 3: Deep research on each company
+        job_storage[job_id].update({
+            "progress": 40,
+            "message": f"Researching {len(companies)} companies in detail..."
+        })
         
-        simulated_leads = []
-        
-        # Generate leads, excluding existing ones if requested
-        for i in range(min(target_count, 50)):  # Cap at 50 for demo
-            # Check if we should exclude this lead based on existing data
-            if exclude_existing and existing_leads:
-                # Simple check to avoid duplicates (in real implementation, use more sophisticated matching)
-                company_name = f"Company {i+1}"
-                email = f"contact{i+1}@company{i+1}.com"
+        researched_companies = []
+        for i, company in enumerate(companies):
+            try:
+                # Update progress for each company
+                progress = 40 + (i / len(companies)) * 30  # 40-70% for research
+                job_storage[job_id].update({
+                    "progress": int(progress),
+                    "message": f"Researching {company.get('name', 'Unknown')}... ({i+1}/{len(companies)})"
+                })
                 
-                # Check if this lead already exists
-                is_duplicate = any(
-                    existing.get('company', '').lower() == company_name.lower() or 
-                    existing.get('email', '').lower() == email.lower()
-                    for existing in existing_leads
-                )
+                # Deep research on company
+                research_data = await research_company_deep(company)
+                researched_companies.append(research_data)
                 
-                if is_duplicate:
-                    logger.info(f"Job {job_id}: Skipping duplicate lead {company_name}")
-                    continue
-            
-            lead = {
-                "id": f"lead_{i+1}",
-                "company": f"Company {i+1}",
-                "contact_name": f"Contact {i+1}",
-                "email": f"contact{i+1}@company{i+1}.com",
-                "phone": f"+1-555-{1000+i:04d}",
-                "linkedin": f"https://linkedin.com/in/contact{i+1}",
-                "website": f"https://company{i+1}.com",
-                "industry": "Technology",
-                "location": "United States",
-                "confidence": 0.85 + (i * 0.01),
-                "source": "AI Platform",
-                "created_at": datetime.utcnow().isoformat()
-            }
-            simulated_leads.append(lead)
+                logger.info(f"Job {job_id}: Completed research for {company.get('name')}")
+                
+            except Exception as e:
+                logger.error(f"Job {job_id}: Error researching {company.get('name')}: {e}")
+                continue
+        
+        # Step 4: Find contacts for each company
+        job_storage[job_id].update({
+            "progress": 70,
+            "message": "Finding contacts and decision makers..."
+        })
+        
+        leads = []
+        for i, company in enumerate(researched_companies):
+            try:
+                # Update progress for each company
+                progress = 70 + (i / len(researched_companies)) * 15  # 70-85% for contacts
+                job_storage[job_id].update({
+                    "progress": int(progress),
+                    "message": f"Finding contacts for {company.get('name', 'Unknown')}... ({i+1}/{len(researched_companies)})"
+                })
+                
+                # Find contacts for this company
+                company_contacts = await find_company_contacts(company)
+                leads.extend(company_contacts)
+                
+                logger.info(f"Job {job_id}: Found {len(company_contacts)} contacts for {company.get('name')}")
+                
+            except Exception as e:
+                logger.error(f"Job {job_id}: Error finding contacts for {company.get('name')}: {e}")
+                continue
+        
+        # Step 5: Generate personalized outreach messages
+        job_storage[job_id].update({
+            "progress": 85,
+            "message": "Generating personalized outreach messages..."
+        })
+        
+        personalized_leads = []
+        for i, lead in enumerate(leads):
+            try:
+                # Update progress for each lead
+                progress = 85 + (i / len(leads)) * 10  # 85-95% for outreach
+                job_storage[job_id].update({
+                    "progress": int(progress),
+                    "message": f"Generating outreach for {lead.get('contact_name', 'Unknown')}... ({i+1}/{len(leads)})"
+                })
+                
+                # Generate personalized outreach
+                outreach_messages = await generate_personalized_outreach(lead)
+                lead.update(outreach_messages)
+                personalized_leads.append(lead)
+                
+            except Exception as e:
+                logger.error(f"Job {job_id}: Error generating outreach for {lead.get('contact_name')}: {e}")
+                personalized_leads.append(lead)  # Add without outreach
+        
+        # Step 6: Finalize and export
+        job_storage[job_id].update({
+            "progress": 95,
+            "message": "Finalizing results and preparing export..."
+        })
+        
+        # Filter out existing leads if requested
+        final_leads = personalized_leads
+        if job_data.get("exclude_existing_leads", False) and job_data.get("existing_leads"):
+            existing_emails = {lead.get('email', '').lower() for lead in job_data.get("existing_leads", [])}
+            final_leads = [lead for lead in personalized_leads if lead.get('email', '').lower() not in existing_emails]
+            logger.info(f"Job {job_id}: Filtered out existing leads, {len(final_leads)} remaining")
         
         # Update job status to completed
         job_storage[job_id].update({
             "status": "completed",
             "progress": 100,
-            "message": f"Job completed! Found {len(simulated_leads)} leads.",
-            "leads": simulated_leads,
+            "message": f"Job completed! Found {len(final_leads)} leads with personalized outreach.",
+            "leads": final_leads,
             "completed_at": datetime.utcnow().isoformat()
         })
         
-        logger.info(f"Job {job_id} completed successfully with {len(simulated_leads)} leads")
+        logger.info(f"Job {job_id} completed successfully with {len(final_leads)} leads")
         
         # If Google Sheets is connected, try to export results
         if job_data.get("connected_sheet_id"):
             try:
-                await export_to_google_sheets(job_id, simulated_leads, job_data)
+                await export_to_google_sheets(job_id, final_leads, job_data)
             except Exception as e:
                 logger.error(f"Failed to export to Google Sheets: {e}")
         
@@ -139,6 +214,76 @@ async def process_job_background(job_id: str, job_data: dict):
             "error": str(e),
             "created_at": datetime.utcnow().isoformat()
         }
+
+async def _fallback_simulation(job_id: str, job_data: dict):
+    """Fallback to simulation if real research fails"""
+    logger.info(f"Job {job_id}: Using fallback simulation")
+    
+    # Simulate web scraping process with realistic steps
+    steps = [
+        ("Analyzing prompt and extracting targeting criteria", 10),
+        ("Searching Google for relevant companies", 25),
+        ("Scraping company websites for contact information", 40),
+        ("Finding LinkedIn profiles and email addresses", 60),
+        ("Researching company details and decision makers", 80),
+        ("Generating personalized outreach messages", 95),
+        ("Finalizing results and preparing export", 100)
+    ]
+    
+    for step_message, progress in steps:
+        await asyncio.sleep(2)  # Simulate processing time
+        job_storage[job_id].update({
+            "progress": progress,
+            "message": step_message
+        })
+        logger.info(f"Job {job_id}: {step_message} ({progress}%)")
+    
+    # Generate mock leads
+    target_count = job_data.get("target_count", 10)
+    existing_leads = job_data.get("existing_leads", [])
+    exclude_existing = job_data.get("exclude_existing_leads", False)
+    
+    simulated_leads = []
+    for i in range(min(target_count, 50)):
+        if exclude_existing and existing_leads:
+            company_name = f"Company {i+1}"
+            email = f"contact{i+1}@company{i+1}.com"
+            
+            is_duplicate = any(
+                existing.get('company', '').lower() == company_name.lower() or 
+                existing.get('email', '').lower() == email.lower()
+                for existing in existing_leads
+            )
+            
+            if is_duplicate:
+                continue
+        
+        lead = {
+            "id": f"lead_{i+1}",
+            "company": f"Company {i+1}",
+            "contact_name": f"Contact {i+1}",
+            "email": f"contact{i+1}@company{i+1}.com",
+            "phone": f"+1-555-{1000+i:04d}",
+            "linkedin": f"https://linkedin.com/in/contact{i+1}",
+            "website": f"https://company{i+1}.com",
+            "industry": "Technology",
+            "location": "United States",
+            "confidence": 0.85 + (i * 0.01),
+            "source": "AI Platform (Simulation)",
+            "created_at": datetime.utcnow().isoformat(),
+            "linkedin_message": "Hi! I'd love to connect and discuss how we can help your business grow.",
+            "email_subject": "Partnership Opportunity",
+            "email_body": "Hi there, I'd love to discuss a potential partnership opportunity."
+        }
+        simulated_leads.append(lead)
+    
+    job_storage[job_id].update({
+        "status": "completed",
+        "progress": 100,
+        "message": f"Job completed! Found {len(simulated_leads)} leads (simulation mode).",
+        "leads": simulated_leads,
+        "completed_at": datetime.utcnow().isoformat()
+    })
 
 async def export_to_google_sheets(job_id: str, leads: list, job_data: dict):
     """Export leads to connected Google Sheet"""
