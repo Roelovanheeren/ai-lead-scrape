@@ -49,6 +49,15 @@ async def root():
             "status": "running"
         }
 
+# Catch-all route for React Router (must be last)
+@app.get("/{path:path}")
+async def serve_react_app(path: str):
+    """Serve React app for all non-API routes"""
+    if not path.startswith("api") and os.path.exists("/app/frontend/dist/index.html"):
+        return FileResponse("/app/frontend/dist/index.html")
+    else:
+        return {"detail": "Not Found"}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
