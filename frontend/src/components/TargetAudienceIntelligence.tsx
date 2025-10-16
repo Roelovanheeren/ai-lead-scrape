@@ -403,12 +403,9 @@ export default function TargetAudienceIntelligence() {
         setConnectedSheets(prev => [...prev, newSheet])
         setNewSheetUrl('')
         setIsConnectingSheet(false)
-        } catch (error) {
-          console.error('Failed to save connected sheet:', error)
-          setIsConnectingSheet(false)
-        }
-      } else {
-        throw new Error('Failed to connect to Google Sheet')
+      } catch (error) {
+        console.error('Failed to save connected sheet:', error)
+        setIsConnectingSheet(false)
       }
     } catch (error) {
       console.error('Error connecting to Google Sheet:', error)
