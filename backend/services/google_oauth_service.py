@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import json
 import secrets
 import hashlib
+import pickle
 
 try:
     from google.oauth2.credentials import Credentials
@@ -43,9 +44,54 @@ class GoogleOAuthService:
         logger.info(f"  - OAuth Available: {GOOGLE_OAUTH_AVAILABLE}")
         logger.info(f"OAuth scopes configured: {self.scopes}")
         
-        # In-memory storage for demo (use Redis/DB in production)
-        self.user_credentials = {}
+        # Persistent storage for credentials (survives deployments)
+        self.credentials_file = "/tmp/oauth_credentials.pkl"
+        self.user_credentials = self._load_credentials()
+        self._cleanup_expired_credentials()
         self.auth_states = {}
+    
+    def _load_credentials(self) -> Dict[str, Any]:
+        """Load credentials from persistent storage"""
+        try:
+            if os.path.exists(self.credentials_file):
+                with open(self.credentials_file, 'rb') as f:
+                    credentials = pickle.load(f)
+                    logger.info(f"Loaded {len(credentials)} stored credentials")
+                    return credentials
+            else:
+                logger.info("No stored credentials found")
+                return {}
+        except Exception as e:
+            logger.error(f"Error loading credentials: {e}")
+            return {}
+    
+    def _save_credentials(self):
+        """Save credentials to persistent storage"""
+        try:
+            with open(self.credentials_file, 'wb') as f:
+                pickle.dump(self.user_credentials, f)
+            logger.info(f"Saved {len(self.user_credentials)} credentials to persistent storage")
+        except Exception as e:
+            logger.error(f"Error saving credentials: {e}")
+    
+    def _cleanup_expired_credentials(self):
+        """Clean up expired credentials on startup"""
+        try:
+            current_time = datetime.now()
+            expired_users = []
+            
+            for user_id, user_data in self.user_credentials.items():
+                if current_time > user_data['expires_at']:
+                    expired_users.append(user_id)
+            
+            if expired_users:
+                for user_id in expired_users:
+                    del self.user_credentials[user_id]
+                logger.info(f"Cleaned up {len(expired_users)} expired credentials")
+                # Save the cleaned up credentials
+                self._save_credentials()
+        except Exception as e:
+            logger.error(f"Error cleaning up expired credentials: {e}")
     
     def get_authorization_url(self, user_id: str) -> Dict[str, Any]:
         """Generate Google OAuth authorization URL"""
@@ -139,6 +185,9 @@ class GoogleOAuthService:
                 'connected_at': datetime.now(),
                 'expires_at': datetime.now() + timedelta(hours=24)  # Extend expiration
             }
+            
+            # Save to persistent storage
+            self._save_credentials()
             
             logger.info(f"Stored credentials for user {user_id}, expires at: {self.user_credentials[user_id]['expires_at']}")
             
@@ -326,13 +375,17 @@ class GoogleOAuthService:
         
         # Check if credentials are expired
         if datetime.now() > user_data['expires_at']:
+            logger.info(f"Credentials for user {user_id} are expired, attempting refresh")
             # Try to refresh
             try:
                 credentials = user_data['credentials']
                 if credentials.refresh_token:
                     credentials.refresh(None)
                     user_data['credentials'] = credentials
-                    user_data['expires_at'] = datetime.now() + timedelta(hours=1)
+                    user_data['expires_at'] = datetime.now() + timedelta(hours=24)
+                    # Save refreshed credentials
+                    self._save_credentials()
+                    logger.info(f"Successfully refreshed credentials for user {user_id}")
                     return credentials
                 else:
                     # No refresh token, need to re-authenticate
