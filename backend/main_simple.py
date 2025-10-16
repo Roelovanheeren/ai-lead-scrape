@@ -100,11 +100,18 @@ async def process_job_background(job_id: str, job_data: dict):
             "progress": 25,
             "message": "Searching Google for relevant companies..."
         })
+        
+        logger.info(f"Job {job_id}: Real research available: {REAL_RESEARCH_AVAILABLE}")
+        logger.info(f"Job {job_id}: Targeting criteria: {targeting_criteria}")
+        logger.info(f"Job {job_id}: Target count: {job_data.get('target_count', 10)}")
+        
         companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
         logger.info(f"Job {job_id}: Found {len(companies)} companies")
         
         if not companies:
             logger.warning(f"Job {job_id}: No companies found, falling back to simulation")
+            logger.warning(f"Job {job_id}: This means Google Custom Search API is not working")
+            logger.warning(f"Job {job_id}: Check GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables")
             # Fallback to simulation if no companies found
             await _fallback_simulation(job_id, job_data)
             return
@@ -230,6 +237,9 @@ async def process_job_background(job_id: str, job_data: dict):
 async def _fallback_simulation(job_id: str, job_data: dict):
     """Fallback to simulation if real research fails"""
     logger.info(f"Job {job_id}: Using fallback simulation")
+    logger.warning(f"Job {job_id}: REAL RESEARCH IS NOT WORKING - Using simulation mode")
+    logger.warning(f"Job {job_id}: This means the system is not doing actual web scraping")
+    logger.warning(f"Job {job_id}: Check API keys and dependencies for real research")
     
     # Simulate web scraping process with realistic steps
     steps = [
@@ -431,7 +441,11 @@ async def api_info():
         "status": "running",
         "real_research_available": REAL_RESEARCH_AVAILABLE,
         "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
-        "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
+        "sheets_routes_available": SHEETS_ROUTES_AVAILABLE,
+        "google_api_key": "SET" if os.getenv("GOOGLE_API_KEY") else "NOT SET",
+        "google_cse_id": "SET" if os.getenv("GOOGLE_CSE_ID") else "NOT SET",
+        "openai_key": "SET" if os.getenv("OPENAI_API_KEY") else "NOT SET",
+        "claude_key": "SET" if os.getenv("CLAUDE_API_KEY") else "NOT SET"
     }
 
 @app.get("/health")

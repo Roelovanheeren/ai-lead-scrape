@@ -105,8 +105,14 @@ class RealResearchEngine:
     
     async def search_companies(self, criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
         """Search for companies using Google Custom Search API"""
+        logger.info(f"Searching companies with criteria: {criteria}")
+        logger.info(f"Google API key available: {bool(self.google_api_key)}")
+        logger.info(f"Google CSE ID available: {bool(self.google_cse_id)}")
+        
         if not self.google_api_key or not self.google_cse_id:
             logger.error("Google API credentials not configured")
+            logger.error(f"GOOGLE_API_KEY: {'SET' if self.google_api_key else 'NOT SET'}")
+            logger.error(f"GOOGLE_CSE_ID: {'SET' if self.google_cse_id else 'NOT SET'}")
             return []
         
         companies = []
