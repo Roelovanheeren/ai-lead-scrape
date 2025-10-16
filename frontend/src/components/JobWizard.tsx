@@ -252,7 +252,13 @@ export default function JobWizard({}: JobWizardProps) {
       
       const response = await apiClient.createJob(jobData)
       console.log('Job created successfully:', response)
-      navigate('/jobs')
+      
+      // Show success message and redirect to job status
+      if (response.job_id) {
+        navigate(`/jobs/${response.job_id}`)
+      } else {
+        navigate('/jobs')
+      }
     } catch (error) {
       console.error('Failed to create job:', error)
       // Handle error (show toast notification, etc.)

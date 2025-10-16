@@ -22,9 +22,15 @@ export interface JobCreate {
 }
 
 export interface JobResponse {
-  job_id: string
+  job_id?: string
+  id?: string
   status: string
   message: string
+  progress?: number
+  created_at?: string
+  completed_at?: string
+  leads?: any[]
+  error?: string
 }
 
 export interface Lead {
