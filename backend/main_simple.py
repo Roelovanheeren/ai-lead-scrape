@@ -352,14 +352,42 @@ async def root():
             "status": "running"
         }
 
+@app.get("/ping")
+async def ping():
+    """Simple ping endpoint for health checks"""
+    return {"status": "ok", "message": "pong"}
+
+@app.get("/api")
+async def api_info():
+    """API info endpoint"""
+    return {
+        "message": "AI Lead Generation Platform API", 
+        "version": "2.0.0",
+        "status": "running",
+        "real_research_available": REAL_RESEARCH_AVAILABLE,
+        "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
+        "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
+    }
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {
-        "status": "healthy", 
-        "timestamp": datetime.utcnow().isoformat(),
-        "service": "AI Lead Generation Platform"
-    }
+    try:
+        return {
+            "status": "healthy", 
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "AI Lead Generation Platform",
+            "real_research_available": REAL_RESEARCH_AVAILABLE,
+            "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
+            "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
+        }
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 @app.post("/jobs/")
 async def create_job(job_data: dict):
@@ -448,7 +476,10 @@ async def test_endpoint():
     return {
         "message": "API is working!",
         "timestamp": datetime.utcnow().isoformat(),
-        "environment": "production"
+        "environment": "production",
+        "real_research_available": REAL_RESEARCH_AVAILABLE,
+        "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
+        "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
     }
 
 # Catch-all route for React Router (MUST BE LAST)

@@ -24,9 +24,26 @@ def main():
     try:
         logger.info("Starting AI Lead Generation Platform on Railway...")
         
-        # Import and run the FastAPI app
-        from main_simple import app
-        import uvicorn
+        # Test imports first
+        logger.info("Testing imports...")
+        try:
+            import uvicorn
+            logger.info("✅ uvicorn imported successfully")
+        except ImportError as e:
+            logger.error(f"❌ Failed to import uvicorn: {e}")
+            raise
+        
+        try:
+            from main_simple import app
+            logger.info("✅ main_simple imported successfully")
+        except ImportError as e:
+            logger.error(f"❌ Failed to import main_simple: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error importing main_simple: {e}")
+            raise
+        
+        logger.info("✅ All imports successful")
         
         # Get port from Railway environment variable
         port = int(os.getenv('PORT', 8000))
