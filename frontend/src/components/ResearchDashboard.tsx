@@ -226,19 +226,7 @@ export default function ResearchDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Research Dashboard</h1>
-          <p className="text-muted mt-1">Configure and launch AI-powered research jobs</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="flex items-center gap-1">
-            <Zap className="h-3 w-3" />
-            AI Research Engine
-          </Badge>
-        </div>
-      </div>
+      {/* Content starts here - header handled by AppShell */}
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
