@@ -50,7 +50,7 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div 
@@ -62,9 +62,9 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 bg-card/90 backdrop-blur border-r border-white/10 transition-all duration-300",
-          "lg:translate-x-0 lg:static lg:z-auto",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:block",
+          "bg-card/90 backdrop-blur border-r border-white/10 transition-all duration-300",
+          "lg:static lg:z-auto",
+          sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full lg:translate-x-0 lg:block",
           sidebarCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -140,7 +140,7 @@ export default function AppShell({ children }: AppShellProps) {
       </aside>
 
       {/* Main content */}
-      <div className={cn("transition-all duration-300", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64")}>
+      <div className="flex-1 min-h-screen">
         {/* Header */}
         <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 border-b border-white/10 bg-card/60 backdrop-blur">
           <div className="flex items-center gap-4">
