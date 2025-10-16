@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 
 interface AppShellProps {
   children: React.ReactNode
+  onNewJob?: () => void
 }
 
 const navigation = [
@@ -38,7 +39,7 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ children, onNewJob }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
@@ -185,7 +186,7 @@ export default function AppShell({ children }: AppShellProps) {
             </Button>
 
             {/* New Job Button */}
-            <Button className="shadow-glow">
+            <Button className="shadow-glow" onClick={onNewJob}>
               <Briefcase className="h-4 w-4 mr-2" />
               New Job
             </Button>

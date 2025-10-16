@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient, JobCreate } from '@/lib/api'
+import { storageService } from '@/lib/storage'
 import { 
   Target, 
   Settings, 
@@ -14,7 +15,13 @@ import {
   Filter,
   Users,
   Building,
-  MapPin
+  MapPin,
+  BookOpen,
+  Upload,
+  Lightbulb,
+  Database,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,9 +35,10 @@ interface JobWizardProps {
 }
 
 const steps = [
-  { id: 1, title: 'Targeting', icon: Target },
-  { id: 2, title: 'Quality & Sources', icon: Settings },
-  { id: 3, title: 'Prompt & Output', icon: FileText },
+  { id: 1, title: 'Knowledge Base', icon: BookOpen },
+  { id: 2, title: 'Targeting', icon: Target },
+  { id: 3, title: 'Quality & Sources', icon: Settings },
+  { id: 4, title: 'Prompt & Output', icon: FileText },
 ]
 
 const industryOptions = [
@@ -54,6 +62,12 @@ const promptChips = [
 
 export default function JobWizard({ onClose }: JobWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
+  const [knowledgeBase, setKnowledgeBase] = useState<any[]>([])
+  const [activeConnectedSheet, setActiveConnectedSheet] = useState<any>(null)
+  const [existingLeads, setExistingLeads] = useState<any[]>([])
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([])
+  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false)
+  const [isLoadingExistingLeads, setIsLoadingExistingLeads] = useState(false)
   const [formData, setFormData] = useState({
     // Step 1: Targeting
     industry: '',
@@ -82,6 +96,61 @@ export default function JobWizard({ onClose }: JobWizardProps) {
 
   const [keywordInput, setKeywordInput] = useState('')
   const [excludeKeywordInput, setExcludeKeywordInput] = useState('')
+
+  // Load knowledge base and existing leads on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load knowledge base
+        const docs = await storageService.getUploadedDocuments()
+        setKnowledgeBase(docs)
+        
+        // Load active connected sheet
+        const activeSheet = await storageService.getActiveConnectedSheet()
+        setActiveConnectedSheet(activeSheet)
+        
+        // Load existing leads if sheet is connected
+        if (activeSheet) {
+          setIsLoadingExistingLeads(true)
+          try {
+            const response = await fetch(`/api/auth/google/sheets/${activeSheet.id}/read`)
+            if (response.ok) {
+              const data = await response.json()
+              setExistingLeads(data.rows || [])
+            }
+          } catch (error) {
+            console.error('Failed to load existing leads:', error)
+          } finally {
+            setIsLoadingExistingLeads(false)
+          }
+        }
+        
+        // Generate suggested prompts based on knowledge base
+        generateSuggestedPrompts(docs)
+      } catch (error) {
+        console.error('Failed to load data:', error)
+      }
+    }
+    
+    loadData()
+  }, [])
+
+  const generateSuggestedPrompts = (docs: any[]) => {
+    const suggestions = []
+    
+    if (docs.length > 0) {
+      suggestions.push("Generate leads as explained in the knowledge base")
+      suggestions.push("Find companies matching the target audience profile")
+      suggestions.push("Research prospects based on uploaded documents")
+    }
+    
+    // Add generic suggestions
+    suggestions.push("Find [industry] companies in [location] with [company size]")
+    suggestions.push("Generate leads for [product/service] targeting [audience]")
+    suggestions.push("Research decision makers at [company type] companies")
+    
+    setSuggestedPrompts(suggestions)
+  }
 
   const addKeyword = (keyword: string) => {
     if (keyword.trim() && !formData.keywords.includes(keyword.trim())) {
@@ -125,7 +194,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
   }
 
   const nextStep = () => {
-    if (currentStep < 3) {
+    if (currentStep < 4) {
       setCurrentStep(prev => prev + 1)
     }
   }
@@ -149,7 +218,11 @@ export default function JobWizard({ onClose }: JobWizardProps) {
         exclude_keywords: formData.excludeKeywords,
         data_sources: formData.dataSources,
         verification_level: formData.verificationLevel as 'basic' | 'standard' | 'premium',
-        output_format: formData.outputFormat as 'basic' | 'detailed' | 'comprehensive'
+        output_format: formData.outputFormat as 'basic' | 'detailed' | 'comprehensive',
+        // Add existing leads exclusion
+        exclude_existing_leads: existingLeads.length > 0,
+        existing_leads: existingLeads,
+        connected_sheet_id: activeConnectedSheet?.id
       }
       
       const response = await apiClient.createJob(jobData)
@@ -220,6 +293,121 @@ export default function JobWizard({ onClose }: JobWizardProps) {
             {currentStep === 1 && (
               <motion.div
                 key="step1"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Knowledge Base & Context</h3>
+                  
+                  {/* Connected Knowledge Base */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <BookOpen className="h-5 w-5 text-teal-400" />
+                      <h4 className="font-medium">Connected Knowledge Base</h4>
+                    </div>
+                    
+                    {knowledgeBase.length > 0 ? (
+                      <div className="space-y-3">
+                        {knowledgeBase.map((doc, index) => (
+                          <div key={index} className="flex items-center gap-3 p-3 bg-card/50 rounded-lg border border-white/10">
+                            <FileText className="h-4 w-4 text-teal-400" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{doc.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {doc.type} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <CheckCircle className="h-4 w-4 text-green-400" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-card/30 rounded-lg border border-dashed border-white/20 text-center">
+                        <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground mb-2">No knowledge base documents uploaded</p>
+                        <p className="text-xs text-muted-foreground">
+                          Upload documents in Target Audience Intelligence to enhance lead generation
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Drag and Drop for New Knowledge */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Upload className="h-5 w-5 text-teal-400" />
+                      <h4 className="font-medium">Add New Knowledge</h4>
+                    </div>
+                    <div 
+                      className="p-6 bg-card/30 rounded-lg border border-dashed border-white/20 text-center hover:border-teal-400/50 transition-colors cursor-pointer"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        // Handle file drop
+                        console.log('Files dropped:', e.dataTransfer.files)
+                      }}
+                    >
+                      <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground mb-1">Drag & drop files here</p>
+                      <p className="text-xs text-muted-foreground">or click to browse</p>
+                    </div>
+                  </div>
+
+                  {/* Active Connected Sheet */}
+                  {activeConnectedSheet && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Database className="h-5 w-5 text-green-400" />
+                        <h4 className="font-medium">Connected Sheet</h4>
+                      </div>
+                      <div className="p-4 bg-card/50 rounded-lg border border-white/10">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                          <div className="flex-1">
+                            <p className="font-medium">{activeConnectedSheet.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {existingLeads.length} existing leads will be excluded from search
+                            </p>
+                          </div>
+                        </div>
+                        {isLoadingExistingLeads && (
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Loading existing leads...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Prompts */}
+                  {suggestedPrompts.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Lightbulb className="h-5 w-5 text-yellow-400" />
+                        <h4 className="font-medium">Suggested Prompts</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {suggestedPrompts.map((prompt, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setFormData(prev => ({ ...prev, prompt }))}
+                            className="w-full p-3 text-left bg-card/30 rounded-lg border border-white/10 hover:border-teal-400/50 transition-colors"
+                          >
+                            <p className="text-sm">{prompt}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {currentStep === 2 && (
+              <motion.div
+                key="step2"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -348,9 +536,9 @@ export default function JobWizard({ onClose }: JobWizardProps) {
               </motion.div>
             )}
 
-            {currentStep === 2 && (
+            {currentStep === 3 && (
               <motion.div
-                key="step2"
+                key="step3"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -417,9 +605,9 @@ export default function JobWizard({ onClose }: JobWizardProps) {
               </motion.div>
             )}
 
-            {currentStep === 3 && (
+            {currentStep === 4 && (
               <motion.div
-                key="step3"
+                key="step4"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -507,7 +695,7 @@ export default function JobWizard({ onClose }: JobWizardProps) {
               <Button variant="ghost" onClick={onClose}>
                 Cancel
               </Button>
-              {currentStep === 3 ? (
+              {currentStep === 4 ? (
                 <Button onClick={handleSubmit} className="shadow-glow">
                   <Check className="h-4 w-4 mr-2" />
                   Create Job

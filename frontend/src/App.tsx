@@ -14,7 +14,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-background text-foreground">
-        <AppShell>
+        <AppShell onNewJob={() => setShowJobWizard(true)}>
           <Routes>
             <Route path="/" element={<ResearchDashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
