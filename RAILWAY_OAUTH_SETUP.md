@@ -21,7 +21,7 @@ You've successfully created your Google OAuth credentials! Now let's configure t
 ```bash
 GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID_HERE
 GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET_HERE
-GOOGLE_REDIRECT_URI=https://your-railway-app.up.railway.app/auth/google/callback
+GOOGLE_REDIRECT_URI=https://ai-lead-scrape-production.up.railway.app/auth/google/callback
 ```
 
 ## 🔧 Step 2: Update Google Cloud Console
@@ -30,14 +30,13 @@ GOOGLE_REDIRECT_URI=https://your-railway-app.up.railway.app/auth/google/callback
 2. **Navigate to "APIs & Services" → "Credentials"**
 3. **Click on your OAuth 2.0 Client ID**
 4. **Update "Authorized redirect URIs"**:
-   - Add: `https://your-railway-app.up.railway.app/auth/google/callback`
-   - Replace `your-railway-app` with your actual Railway app name
+   - Add: `https://ai-lead-scrape-production.up.railway.app/auth/google/callback`
 
 ## 🧪 Step 3: Test the Integration
 
 ### Test OAuth Health Check:
 ```bash
-curl https://your-railway-app.up.railway.app/auth/google/health
+curl https://ai-lead-scrape-production.up.railway.app/auth/google/health
 ```
 
 **Expected Response**:
@@ -52,7 +51,7 @@ curl https://your-railway-app.up.railway.app/auth/google/health
 
 ### Test Authorization URL:
 ```bash
-curl -X POST https://your-railway-app.up.railway.app/auth/google/authorize \
+curl -X POST https://ai-lead-scrape-production.up.railway.app/auth/google/authorize \
   -H "Content-Type: application/json" \
   -d '{"user_id": "test_user_123"}'
 ```
@@ -92,7 +91,7 @@ curl -X POST https://your-railway-app.up.railway.app/auth/google/authorize \
 
 1. **"Invalid redirect URI" error**
    - **Solution**: Check that redirect URI in Google Cloud Console matches exactly
-   - **Format**: `https://your-railway-app.up.railway.app/auth/google/callback`
+   - **Format**: `https://ai-lead-scrape-production.up.railway.app/auth/google/callback`
 
 2. **"Client not found" error**
    - **Solution**: Verify Client ID and Client Secret are set correctly in Railway
