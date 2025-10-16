@@ -233,6 +233,9 @@ export default function TargetAudienceIntelligence() {
     // Simulate AI analysis
     setTimeout(() => {
       setAudienceProfile({
+        id: 'generated-profile',
+        name: 'AI Generated Profile',
+        description: 'AI-generated audience profile based on uploaded documents',
         demographics: {
           ageRange: '25-45',
           gender: 'Mixed',
@@ -255,7 +258,9 @@ export default function TargetAudienceIntelligence() {
           channels: ['LinkedIn', 'Industry forums', 'Webinars'],
           content: ['Technical blogs', 'Case studies', 'Product demos'],
           timing: 'Q4 planning, Q1 implementation'
-        }
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       setIsGeneratingProfile(false)
     }, 3000)
