@@ -15,6 +15,13 @@ import os
 import asyncio
 import time
 
+# Configure logging first
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Import real research functions
 REAL_RESEARCH_AVAILABLE = False
 try:
@@ -60,10 +67,6 @@ except ImportError as e:
     OAUTH_ROUTES_AVAILABLE = False
 # from routes.makecom_routes import router as makecom_router
 # from routes.ai_chat_routes import router as ai_chat_router
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # In-memory job storage (use database in production)
 job_storage = {}
