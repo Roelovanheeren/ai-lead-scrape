@@ -99,6 +99,24 @@ async def read_sheet_data(
         logger.error(f"Error reading sheet data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/sheets/{sheet_id}/read")
+async def read_sheet_data_get(
+    sheet_id: str,
+    user_id: str = Query(..., description="User ID"),
+    range: str = "A:Z"
+):
+    """Read data from user's Google Sheet (GET endpoint for easier frontend access)"""
+    try:
+        result = google_oauth_service.read_sheet_data(
+            user_id,
+            sheet_id,
+            range
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error reading sheet data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/sheets/{sheet_id}/write-lead")
 async def write_lead_to_sheet(
     sheet_id: str,

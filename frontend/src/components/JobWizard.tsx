@@ -35,9 +35,8 @@ interface JobWizardProps {}
 
 const steps = [
   { id: 1, title: 'Knowledge Base', icon: BookOpen },
-  { id: 2, title: 'Targeting', icon: Target },
-  { id: 3, title: 'Quality & Sources', icon: Settings },
-  { id: 4, title: 'Prompt & Output', icon: FileText },
+  { id: 2, title: 'Your Requirements', icon: Target },
+  { id: 3, title: 'Review & Launch', icon: FileText },
 ]
 
 const industryOptions = [
@@ -113,10 +112,28 @@ export default function JobWizard({}: JobWizardProps) {
         if (activeSheet) {
           setIsLoadingExistingLeads(true)
           try {
-            const response = await fetch(`/api/auth/google/sheets/${activeSheet.id}/read`)
+            // Use a default user_id for now - in a real app, this would come from authentication
+            const userId = 'default_user'
+            const response = await fetch(`/api/auth/google/sheets/${activeSheet.id}/read?user_id=${userId}`)
             if (response.ok) {
               const data = await response.json()
-              setExistingLeads(data.rows || [])
+              console.log('Sheet data received:', data)
+              
+              // Handle different response formats
+              let leads = []
+              if (data.success && data.rows) {
+                leads = data.rows
+              } else if (data.success && data.values) {
+                leads = data.values
+              } else if (data.success && data.data) {
+                leads = data.data
+              }
+              
+              console.log('Processed leads:', leads)
+              setExistingLeads(leads)
+            } else {
+              const errorText = await response.text()
+              console.error('Failed to load sheet data:', response.status, response.statusText, errorText)
             }
           } catch (error) {
             console.error('Failed to load existing leads:', error)
@@ -194,7 +211,7 @@ export default function JobWizard({}: JobWizardProps) {
   }
 
   const nextStep = () => {
-    if (currentStep < 4) {
+    if (currentStep < 3) {
       setCurrentStep(prev => prev + 1)
     }
   }
@@ -410,122 +427,61 @@ export default function JobWizard({}: JobWizardProps) {
                 className="space-y-6"
               >
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Targeting Parameters</h3>
+                  <h3 className="text-xl font-semibold mb-4">What do you want to target?</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Describe your ideal prospects in your own words. Be as specific or general as you want.
+                  </p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Industry */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Industry</label>
-                      <select
-                        value={formData.industry}
-                        onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-                      >
-                        <option value="">Select industry...</option>
-                        {industryOptions.map(industry => (
-                          <option key={industry} value={industry}>{industry}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Location */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Location</label>
-                      <select
-                        value={formData.location}
-                        onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-                      >
-                        <option value="">Select location...</option>
-                        {locationOptions.map(location => (
-                          <option key={location} value={location}>{location}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Company Size */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Company Size</label>
-                      <select
-                        value={formData.companySize}
-                        onChange={(e) => setFormData(prev => ({ ...prev, companySize: e.target.value }))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-                      >
-                        <option value="">Select company size...</option>
-                        {companySizeOptions.map(size => (
-                          <option key={size} value={size}>{size}</option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Main Prompt Input */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">Your Targeting Requirements</label>
+                    <textarea
+                      value={formData.prompt}
+                      onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
+                      placeholder="Describe what you want to target... (e.g., 'Find AI startups in California that have raised Series A funding and are looking for enterprise customers', or 'Wealth management firms in New York with over 50 employees', or 'CFOs at manufacturing companies in the Midwest')"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 min-h-[200px]"
+                      rows={8}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Be specific about your target audience, industry, location, company size, funding stage, or any other criteria that matter to you.
+                    </p>
                   </div>
 
-                  {/* Keywords */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Include Keywords</label>
-                    <div className="flex gap-2 mb-2">
-                      <Input
-                        placeholder="Add keyword..."
-                        value={keywordInput}
-                        onChange={(e) => setKeywordInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            addKeyword(keywordInput)
-                            setKeywordInput('')
-                          }
-                        }}
-                      />
-                      <Button onClick={() => {
-                        addKeyword(keywordInput)
-                        setKeywordInput('')
-                      }}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                  {/* Smart Suggestions */}
+                  {suggestedPrompts.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Lightbulb className="h-5 w-5 text-yellow-400" />
+                        <h4 className="font-medium">Smart Suggestions</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {suggestedPrompts.map((prompt, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setFormData(prev => ({ ...prev, prompt }))}
+                            className="p-3 text-left bg-card/30 rounded-lg border border-white/10 hover:border-teal-400/50 transition-colors"
+                          >
+                            <p className="text-sm">{prompt}</p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.keywords.map(keyword => (
-                        <Badge key={keyword} variant="secondary" className="flex items-center gap-1">
-                          {keyword}
-                          <X 
-                            className="h-3 w-3 cursor-pointer" 
-                            onClick={() => removeKeyword(keyword)}
-                          />
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Exclude Keywords */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Exclude Keywords</label>
-                    <div className="flex gap-2 mb-2">
+                  {/* Target Count */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">How many leads do you want?</label>
+                    <div className="flex items-center gap-4">
                       <Input
-                        placeholder="Add exclusion keyword..."
-                        value={excludeKeywordInput}
-                        onChange={(e) => setExcludeKeywordInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            addExcludeKeyword(excludeKeywordInput)
-                            setExcludeKeywordInput('')
-                          }
-                        }}
+                        type="number"
+                        value={formData.targetCount}
+                        onChange={(e) => setFormData(prev => ({ ...prev, targetCount: parseInt(e.target.value) || 0 }))}
+                        placeholder="100"
+                        className="w-32"
                       />
-                      <Button onClick={() => {
-                        addExcludeKeyword(excludeKeywordInput)
-                        setExcludeKeywordInput('')
-                      }}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.excludeKeywords.map(keyword => (
-                        <Badge key={keyword} variant="destructive" className="flex items-center gap-1">
-                          {keyword}
-                          <X 
-                            className="h-3 w-3 cursor-pointer" 
-                            onClick={() => removeExcludeKeyword(keyword)}
-                          />
-                        </Badge>
-                      ))}
+                      <span className="text-sm text-muted-foreground">
+                        leads to generate
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -541,60 +497,70 @@ export default function JobWizard({}: JobWizardProps) {
                 className="space-y-6"
               >
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Quality & Data Sources</h3>
+                  <h3 className="text-xl font-semibold mb-4">Review & Launch</h3>
                   
-                  {/* Quality Threshold */}
+                  {/* Job Summary */}
                   <div className="mb-6">
-                    <label className="block text-sm font-medium mb-2">
-                      Quality Threshold: {Math.round(formData.qualityThreshold * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={formData.qualityThreshold}
-                      onChange={(e) => setFormData(prev => ({ ...prev, qualityThreshold: parseFloat(e.target.value) }))}
-                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <div className="flex justify-between text-xs text-muted mt-1">
-                      <span>Low (0%)</span>
-                      <span>High (100%)</span>
+                    <h4 className="font-medium mb-3">Job Summary</h4>
+                    <div className="p-4 bg-card/50 rounded-lg border border-white/10">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Targeting:</span>
+                          <span className="text-sm font-medium">{formData.prompt || 'No targeting specified'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Lead Count:</span>
+                          <span className="text-sm font-medium">{formData.targetCount} leads</span>
+                        </div>
+                        {activeConnectedSheet && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Connected Sheet:</span>
+                            <span className="text-sm font-medium">{activeConnectedSheet.name}</span>
+                          </div>
+                        )}
+                        {existingLeads.length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Existing Leads:</span>
+                            <span className="text-sm font-medium">{existingLeads.length} will be excluded</span>
+                          </div>
+                        )}
+                        {existingLeads.length === 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Existing Leads:</span>
+                            <span className="text-sm font-medium text-green-400">No existing leads found</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Data Sources */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium mb-3">Data Sources</label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {Object.entries(formData.dataSources).map(([source, enabled]) => (
-                        <label key={source} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={enabled}
-                            onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              dataSources: { ...prev.dataSources, [source]: e.target.checked }
-                            }))}
-                            className="rounded border-white/20"
-                          />
-                          <span className="text-sm capitalize">{source.replace(/([A-Z])/g, ' $1').trim()}</span>
-                        </label>
-                      ))}
+                  {/* Knowledge Base Summary */}
+                  {knowledgeBase.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-medium mb-3">Knowledge Base</h4>
+                      <div className="space-y-2">
+                        {knowledgeBase.map((doc, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-card/30 rounded-lg">
+                            <FileText className="h-4 w-4 text-teal-400" />
+                            <span className="text-sm">{doc.name}</span>
+                            <CheckCircle className="h-4 w-4 text-green-400 ml-auto" />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Verification Level */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Verification Level</label>
+                  {/* Output Format */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">Output Format</label>
                     <select
-                      value={formData.verificationLevel}
-                      onChange={(e) => setFormData(prev => ({ ...prev, verificationLevel: e.target.value }))}
+                      value={formData.outputFormat}
+                      onChange={(e) => setFormData(prev => ({ ...prev, outputFormat: e.target.value }))}
                       className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
                     >
-                      <option value="basic">Basic (Email format check)</option>
-                      <option value="standard">Standard (Email + domain validation)</option>
-                      <option value="premium">Premium (Full verification + deliverability)</option>
+                      <option value="basic">Basic (Name, Company, Email)</option>
+                      <option value="detailed">Detailed (Full contact info + company details)</option>
+                      <option value="comprehensive">Comprehensive (Full research + outreach suggestions)</option>
                     </select>
                   </div>
                 </div>
@@ -691,7 +657,7 @@ export default function JobWizard({}: JobWizardProps) {
               <Button variant="ghost" onClick={() => navigate('/jobs')}>
                 Cancel
               </Button>
-              {currentStep === 4 ? (
+              {currentStep === 3 ? (
                 <Button onClick={handleSubmit} className="shadow-glow">
                   <Check className="h-4 w-4 mr-2" />
                   Create Job

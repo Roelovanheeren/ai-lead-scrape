@@ -209,6 +209,8 @@ class GoogleOAuthService:
             return {
                 "success": True,
                 "data": values,
+                "values": values,
+                "rows": values,
                 "row_count": len(values)
             }
             
