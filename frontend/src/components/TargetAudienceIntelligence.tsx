@@ -190,25 +190,64 @@ export default function TargetAudienceIntelligence() {
     setCurrentMessage('')
     setIsTyping(true)
 
-    // Simulate AI response
-    setTimeout(async () => {
-      const aiResponse: StorageChatMessage = {
+    // Send message to real AI chat API
+    try {
+      const response = await fetch('/ai-chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: currentMessage,
+          conversation_history: chatMessages,
+          current_stage: 'introduction' // You could track this in state
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        
+        const aiResponse: StorageChatMessage = {
+          id: Math.random().toString(36).substr(2, 9),
+          role: 'assistant',
+          content: result.response,
+          timestamp: new Date().toISOString()
+        }
+        
+        // Save AI response to persistent storage
+        try {
+          await storageService.addChatMessage(aiResponse)
+          setChatMessages(prev => [...prev, aiResponse])
+        } catch (error) {
+          console.error('Failed to save AI response:', error)
+        }
+        
+        // Check if conversation is complete
+        if (result.is_complete) {
+          // Generate final audience profile
+          await generateAudienceProfile()
+        }
+      } else {
+        throw new Error('Failed to get AI response')
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      
+      // Fallback response
+      const fallbackResponse: StorageChatMessage = {
         id: Math.random().toString(36).substr(2, 9),
         role: 'assistant',
-        content: generateAIResponse(currentMessage),
+        content: "I'm having trouble processing your message. Could you please try again?",
         timestamp: new Date().toISOString()
       }
-
-      // Save AI response to persistent storage
+      
       try {
-        await storageService.addChatMessage(aiResponse)
-        setChatMessages(prev => [...prev, aiResponse])
+        await storageService.addChatMessage(fallbackResponse)
+        setChatMessages(prev => [...prev, fallbackResponse])
       } catch (error) {
-        console.error('Failed to save AI response:', error)
+        console.error('Failed to save fallback response:', error)
       }
-
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
   const generateAIResponse = (userMessage: string): string => {
@@ -230,12 +269,71 @@ export default function TargetAudienceIntelligence() {
   const generateAudienceProfile = async () => {
     setIsGeneratingProfile(true)
     
-    // Simulate AI analysis
-    setTimeout(() => {
+    try {
+      // Send conversation to AI to generate profile
+      const response = await fetch('/ai-chat/generate-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_history: chatMessages
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        const aiProfile = result.profile
+        
+        // Convert AI profile to our format
+        const generatedProfile: StorageAudienceProfile = {
+          id: 'ai-generated-profile',
+          name: 'AI Generated Profile',
+          description: 'AI-generated audience profile based on conversation',
+          demographics: {
+            ageRange: aiProfile.demographics?.age_range || '25-45',
+            gender: aiProfile.demographics?.gender || 'Mixed',
+            location: aiProfile.demographics?.location || 'North America, Europe',
+            income: aiProfile.demographics?.income || '$50k-$150k'
+          },
+          psychographics: {
+            interests: aiProfile.psychographics?.interests || ['Technology', 'Innovation'],
+            painPoints: aiProfile.psychographics?.pain_points || ['Manual processes', 'Time constraints'],
+            goals: aiProfile.psychographics?.goals || ['Increase productivity', 'Reduce costs'],
+            values: aiProfile.psychographics?.values || ['Innovation', 'Reliability']
+          },
+          firmographics: {
+            companySize: aiProfile.firmographics?.company_size || '50-500 employees',
+            industry: aiProfile.firmographics?.industry || ['Technology', 'SaaS'],
+            jobTitles: aiProfile.firmographics?.job_titles || ['CTO', 'VP Engineering'],
+            technology: aiProfile.firmographics?.technology || ['Cloud platforms', 'APIs']
+          },
+          behavior: {
+            channels: aiProfile.behavior?.channels || ['LinkedIn', 'Industry forums'],
+            content: aiProfile.behavior?.content || ['Technical blogs', 'Case studies'],
+            timing: aiProfile.behavior?.timing || 'Q4 planning, Q1 implementation'
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        setAudienceProfile(generatedProfile)
+        
+        // Save to persistent storage
+        try {
+          await storageService.saveAudienceProfile(generatedProfile)
+        } catch (error) {
+          console.error('Failed to save audience profile:', error)
+        }
+      } else {
+        throw new Error('Failed to generate audience profile')
+      }
+    } catch (error) {
+      console.error('Error generating audience profile:', error)
+      
+      // Fallback to mock profile
       setAudienceProfile({
-        id: 'generated-profile',
-        name: 'AI Generated Profile',
-        description: 'AI-generated audience profile based on uploaded documents',
+        id: 'fallback-profile',
+        name: 'Fallback Profile',
+        description: 'Fallback profile due to AI error',
         demographics: {
           ageRange: '25-45',
           gender: 'Mixed',
@@ -262,8 +360,9 @@ export default function TargetAudienceIntelligence() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
+    } finally {
       setIsGeneratingProfile(false)
-    }, 3000)
+    }
   }
 
   const connectGoogleSheet = async () => {
@@ -272,31 +371,38 @@ export default function TargetAudienceIntelligence() {
     setIsConnectingSheet(true)
     
     try {
-      // Use the real Google Sheets service
-      const sheetData = await googleSheetsService.readSheetData(newSheetUrl)
+      // Test Make.com connection first
+      const connectionTest = await fetch('/makecom/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
       
-      if (sheetData) {
-        const newSheet: ConnectedSheet = {
-          id: sheetData.id,
-          name: sheetData.name,
-          url: sheetData.url,
-          lastSync: sheetData.lastSync.toISOString(),
-          columns: sheetData.columns,
-          rowCount: sheetData.data.length,
-          isConnected: sheetData.isConnected,
-          permissions: {
-            canRead: true,
-            canWrite: false,
-            canShare: false
-          }
+      if (!connectionTest.ok) {
+        throw new Error('Make.com connection not configured. Please set up Make.com webhook first.')
+      }
+      
+      // Create a mock connected sheet for Make.com integration
+      const newSheet: ConnectedSheet = {
+        id: `makecom_${Date.now()}`,
+        name: 'Google Sheets (via Make.com)',
+        url: newSheetUrl,
+        lastSync: new Date().toISOString(),
+        columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status'],
+        rowCount: 0,
+        isConnected: true,
+        permissions: {
+          canRead: true,
+          canWrite: true,
+          canShare: false
         }
-        
-        // Save to persistent storage
-        try {
-          await storageService.addConnectedSheet(newSheet)
-          setConnectedSheets(prev => [...prev, newSheet])
-          setNewSheetUrl('')
-          setIsConnectingSheet(false)
+      }
+      
+      // Save to persistent storage
+      try {
+        await storageService.addConnectedSheet(newSheet)
+        setConnectedSheets(prev => [...prev, newSheet])
+        setNewSheetUrl('')
+        setIsConnectingSheet(false)
         } catch (error) {
           console.error('Failed to save connected sheet:', error)
           setIsConnectingSheet(false)
@@ -314,38 +420,58 @@ export default function TargetAudienceIntelligence() {
   const syncWithSheets = async () => {
     setIsSyncing(true)
     
-    // Simulate syncing lead data to Google Sheets
-    setTimeout(() => {
-      const mockLeadData: LeadData[] = [
+    try {
+      // Prepare lead data for Make.com
+      const mockLeadData = [
         {
           company: 'TechCorp Inc',
-          contact: 'John Smith',
+          contact_name: 'John Smith',
           email: 'john@techcorp.com',
           phone: '+1-555-0123',
-          title: 'CTO',
           industry: 'Technology',
           location: 'San Francisco, CA',
-          message: 'Hi John, I noticed TechCorp is expanding their engineering team. Our AI platform could help streamline your development process...',
-          confidence: 0.85,
-          source: 'LinkedIn'
+          status: 'New'
         },
         {
           company: 'DataFlow Systems',
-          contact: 'Sarah Johnson',
+          contact_name: 'Sarah Johnson',
           email: 'sarah@dataflow.com',
           phone: '+1-555-0456',
-          title: 'VP Engineering',
           industry: 'SaaS',
           location: 'Austin, TX',
-          message: 'Hi Sarah, DataFlow\'s growth in the data analytics space caught my attention. Our solution could help optimize your data processing...',
-          confidence: 0.92,
-          source: 'Company Website'
+          status: 'New'
         }
       ]
       
-      setLeadData(mockLeadData)
+      // Send leads to Make.com webhook
+      const response = await fetch('/makecom/sync-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leads: mockLeadData,
+          sheet_name: 'Leads'
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Sync result:', result)
+        
+        // Update connected sheets with sync status
+        setConnectedSheets(prev => prev.map(sheet => ({
+          ...sheet,
+          lastSync: new Date().toISOString(),
+          rowCount: sheet.rowCount + mockLeadData.length
+        })))
+      } else {
+        throw new Error('Failed to sync with Make.com')
+      }
+      
       setIsSyncing(false)
-    }, 3000)
+    } catch (error) {
+      console.error('Sync error:', error)
+      setIsSyncing(false)
+    }
   }
 
   const disconnectSheet = (sheetId: string) => {

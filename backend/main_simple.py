@@ -13,6 +13,10 @@ from datetime import datetime
 import uuid
 import os
 
+# Import routes
+from routes.makecom_routes import router as makecom_router
+from routes.ai_chat_routes import router as ai_chat_router
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +35,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routes
+app.include_router(makecom_router)
+app.include_router(ai_chat_router)
 
 # Mount static files (React app)
 if os.path.exists("/app/frontend/dist"):
