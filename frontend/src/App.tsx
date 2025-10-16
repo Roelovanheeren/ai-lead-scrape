@@ -6,6 +6,7 @@ import ResearchDashboard from './components/ResearchDashboard'
 import LeadsTable from './components/LeadsTable'
 import JobWizard from './components/JobWizard'
 import TargetAudienceIntelligence from './components/TargetAudienceIntelligence'
+import TestAppShell from './components/TestAppShell'
 
 function App() {
   const [showJobWizard, setShowJobWizard] = useState(false)
@@ -15,7 +16,7 @@ function App() {
       <div className="min-h-screen bg-background text-foreground">
         <AppShell>
           <Routes>
-            <Route path="/" element={<ResearchDashboard />} />
+            <Route path="/" element={<TestAppShell />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/research" element={<ResearchDashboard />} />
             <Route path="/leads" element={<LeadsTable />} />
