@@ -319,7 +319,7 @@ export default function TargetAudienceIntelligence() {
         
         // Save to persistent storage
         try {
-          await storageService.saveAudienceProfile(generatedProfile)
+          await storageService.saveAudienceProfiles([generatedProfile])
         } catch (error) {
           console.error('Failed to save audience profile:', error)
         }
