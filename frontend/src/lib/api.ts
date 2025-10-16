@@ -56,8 +56,17 @@ class ApiClient {
   private baseUrl: string
 
   constructor() {
-    // Use environment variable or default to localhost for development
-    this.baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000'
+    // Use environment variable or detect current domain for production
+    const envUrl = (import.meta as any).env?.VITE_API_URL
+    if (envUrl) {
+      this.baseUrl = envUrl
+    } else if (typeof window !== 'undefined') {
+      // In browser, use current domain
+      this.baseUrl = window.location.origin
+    } else {
+      // Fallback for development
+      this.baseUrl = 'http://localhost:8000'
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
