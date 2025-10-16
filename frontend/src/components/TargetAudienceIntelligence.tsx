@@ -497,12 +497,17 @@ export default function TargetAudienceIntelligence() {
     setIsMappingHeaders(true)
     
     try {
+      // Filter out empty mappings (unmapped fields are allowed)
+      const activeMapping = Object.fromEntries(
+        Object.entries(headerMapping).filter(([key, value]) => value !== '')
+      )
+      
       // Save header mapping to knowledge base
       const mappingData = {
         sheetId: selectedSheet?.id,
         sheetName: selectedSheet?.name,
         headers: sheetHeaders,
-        mapping: headerMapping,
+        mapping: activeMapping,
         timestamp: new Date().toISOString()
       }
       
@@ -511,6 +516,13 @@ export default function TargetAudienceIntelligence() {
       
       console.log('Header mapping saved:', mappingData)
       setConnectionMessage('Sheet configuration saved successfully!')
+      
+      // Clear the selection to show success
+      setTimeout(() => {
+        setSelectedSheet(null)
+        setSheetHeaders([])
+        setHeaderMapping({})
+      }, 2000)
     } catch (error) {
       console.error('Error saving header mapping:', error)
       setSheetConnectionError('Failed to save sheet configuration')
@@ -1051,7 +1063,11 @@ export default function TargetAudienceIntelligence() {
                     Configure Data Mapping
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Map your research data fields to the columns in "{selectedSheet.name}"
+                    Map your research data fields to the columns in "{selectedSheet.name}". 
+                    <br />
+                    <span className="text-xs text-muted-foreground/80">
+                      Note: You can leave fields unmapped if they're not relevant for your outreach workflow.
+                    </span>
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1075,7 +1091,8 @@ export default function TargetAudienceIntelligence() {
                             <option value="contact_name">Contact Name</option>
                             <option value="email">Email Address</option>
                             <option value="phone">Phone Number</option>
-                            <option value="linkedin_url">LinkedIn URL</option>
+                            <option value="linkedin_url">Contact LinkedIn URL</option>
+                            <option value="company_linkedin_url">Company LinkedIn URL</option>
                             <option value="website">Company Website</option>
                             <option value="industry">Industry</option>
                             <option value="location">Location</option>
