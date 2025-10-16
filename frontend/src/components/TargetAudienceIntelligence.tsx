@@ -57,18 +57,18 @@ interface LeadData {
 
 export default function TargetAudienceIntelligence() {
   const [activeTab, setActiveTab] = useState<'upload' | 'chat' | 'profile' | 'sheets'>('upload')
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([])
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+  const [uploadedDocs, setUploadedDocs] = useState<StorageUploadedDocument[]>([])
+  const [chatMessages, setChatMessages] = useState<StorageChatMessage[]>([
     {
       id: '1',
-      type: 'ai',
+      role: 'assistant',
       content: "Hi! I'm your AI Audience Intelligence Assistant. I'll help you discover your perfect target audience. Let's start with your business - what product or service are you offering?",
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     }
   ])
   const [currentMessage, setCurrentMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const [audienceProfile, setAudienceProfile] = useState<AudienceProfile>({
+  const [audienceProfile, setAudienceProfile] = useState<StorageAudienceProfile>({
     demographics: {
       ageRange: '',
       gender: '',
