@@ -1,0 +1,99 @@
+"""
+Simplified AI Lead Generation Platform for Railway
+FastAPI Backend with basic functionality
+"""
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import logging
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+import uuid
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="AI Lead Generation Platform",
+    description="Automated lead discovery, research, and outreach generation",
+    version="2.0.0"
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "AI Lead Generation Platform API", 
+        "version": "2.0.0",
+        "status": "running"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy", 
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "AI Lead Generation Platform"
+    }
+
+@app.post("/jobs/")
+async def create_job(job_data: dict):
+    """Create a new lead generation job"""
+    try:
+        job_id = str(uuid.uuid4())
+        logger.info(f"Creating job {job_id} with prompt: {job_data.get('prompt', 'N/A')}")
+        
+        return {
+            "id": job_id,
+            "prompt": job_data.get("prompt", ""),
+            "target_count": job_data.get("target_count", 10),
+            "quality_threshold": job_data.get("quality_threshold", 0.8),
+            "status": "created",
+            "created_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error creating job: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    """Get job status"""
+    return {
+        "id": job_id,
+        "status": "processing",
+        "created_at": datetime.utcnow().isoformat(),
+        "message": "Job is being processed"
+    }
+
+@app.get("/jobs/")
+async def list_jobs():
+    """List all jobs"""
+    return {
+        "jobs": [],
+        "total": 0,
+        "message": "No jobs found"
+    }
+
+@app.get("/test")
+async def test_endpoint():
+    """Test endpoint to verify the API is working"""
+    return {
+        "message": "API is working!",
+        "timestamp": datetime.utcnow().isoformat(),
+        "environment": "production"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

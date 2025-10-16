@@ -25,7 +25,7 @@ def main():
         logger.info("Starting AI Lead Generation Platform on Railway...")
         
         # Import and run the FastAPI app
-        from main import app
+        from main_simple import app
         import uvicorn
         
         # Get port from Railway environment variable
