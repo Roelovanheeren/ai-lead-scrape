@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend requirements
+# Copy requirements first for better caching
 COPY backend/requirements.txt .
 
 # Install Python dependencies
