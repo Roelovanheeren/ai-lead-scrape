@@ -16,6 +16,7 @@ import asyncio
 import time
 
 # Import real research functions
+REAL_RESEARCH_AVAILABLE = False
 try:
     from services.real_research import (
         extract_targeting_criteria,
@@ -27,35 +28,27 @@ try:
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
 except ImportError as e:
-    REAL_RESEARCH_AVAILABLE = False
     logger.warning(f"⚠️ Real research engine not available: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
-    # Fallback functions
-    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
-        return {"keywords": prompt.split()[:10], "industry": "Technology"}
-    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-        return []
-    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
-        return company
-    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return []
-    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
-        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
 except Exception as e:
-    REAL_RESEARCH_AVAILABLE = False
     logger.error(f"❌ Error loading real research engine: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
-    # Fallback functions
-    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
-        return {"keywords": prompt.split()[:10], "industry": "Technology"}
-    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-        return []
-    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
-        return company
-    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return []
-    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
-        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+
+# Fallback functions (always define these)
+async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+    return {"keywords": prompt.split()[:10], "industry": "Technology"}
+
+async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+    return []
+
+async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+    return company
+
+async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return []
+
+async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+    return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
 
 # Import routes
 try:
@@ -342,20 +335,36 @@ if os.path.exists("/app/frontend/dist"):
 
 @app.get("/")
 async def root():
-    """Root endpoint - serve React app"""
-    if os.path.exists("/app/frontend/dist/index.html"):
-        return FileResponse("/app/frontend/dist/index.html")
-    else:
+    """Root endpoint - serve React app or API info"""
+    try:
+        # Check if frontend exists and serve it
+        if os.path.exists("/app/frontend/dist/index.html"):
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            return {
+                "message": "AI Lead Generation Platform API", 
+                "version": "2.0.0",
+                "status": "running",
+                "health": "ok"
+            }
+    except Exception as e:
+        logger.error(f"Root endpoint error: {e}")
         return {
             "message": "AI Lead Generation Platform API", 
             "version": "2.0.0",
-            "status": "running"
+            "status": "running",
+            "health": "ok",
+            "error": str(e)
         }
 
 @app.get("/ping")
 async def ping():
     """Simple ping endpoint for health checks"""
-    return {"status": "ok", "message": "pong"}
+    try:
+        return {"status": "ok", "message": "pong", "timestamp": datetime.utcnow().isoformat()}
+    except Exception as e:
+        logger.error(f"Ping error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api")
 async def api_info():

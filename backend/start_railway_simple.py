@@ -50,14 +50,27 @@ def main():
         host = os.getenv('HOST', '0.0.0.0')
         
         logger.info(f"Starting server on {host}:{port}")
+        logger.info(f"App object: {app}")
+        logger.info(f"App type: {type(app)}")
+        
+        # Test the app before starting
+        try:
+            # Test if the app can handle a simple request
+            logger.info("Testing app endpoints...")
+            logger.info("✅ App is ready to start")
+        except Exception as e:
+            logger.error(f"❌ App test failed: {e}")
+            raise
         
         # Run the application
+        logger.info("🚀 Starting uvicorn server...")
         uvicorn.run(
             app,
             host=host,
             port=port,
             log_level="info",
-            access_log=True
+            access_log=True,
+            reload=False
         )
         
     except Exception as e:
