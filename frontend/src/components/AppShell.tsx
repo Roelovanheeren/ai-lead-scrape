@@ -57,12 +57,11 @@ export default function AppShell({ children }: AppShellProps) {
       )}
 
       {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{ x: sidebarOpen ? 0 : '-100%' }}
+      <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-card/90 backdrop-blur border-r border-white/10 lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 w-64 bg-card/90 backdrop-blur border-r border-white/10",
+          "lg:translate-x-0 lg:static lg:z-auto",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:block"
         )}
       >
         <div className="flex h-full flex-col">
@@ -116,7 +115,7 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
           </div>
         </div>
-      </motion.aside>
+      </aside>
 
       {/* Main content */}
       <div className="lg:pl-64">
