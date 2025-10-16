@@ -60,11 +60,17 @@ async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]
 # Import routes
 try:
     from routes.google_oauth_routes import router as google_oauth_router
-    from routes.google_sheets_routes import router as google_sheets_router
     OAUTH_ROUTES_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"OAuth routes not available: {e}")
     OAUTH_ROUTES_AVAILABLE = False
+
+try:
+    from routes.google_sheets_routes import router as google_sheets_router
+    SHEETS_ROUTES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Google Sheets routes not available: {e}")
+    SHEETS_ROUTES_AVAILABLE = False
 # from routes.makecom_routes import router as makecom_router
 # from routes.ai_chat_routes import router as ai_chat_router
 
@@ -111,7 +117,14 @@ async def process_job_background(job_id: str, job_data: dict):
         if not companies:
             logger.warning(f"Job {job_id}: No companies found, falling back to simulation")
             logger.warning(f"Job {job_id}: This means Google Custom Search API is not working")
-            logger.warning(f"Job {job_id}: Check GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables")
+            google_key = os.getenv("GOOGLE_API_KEY")
+            google_cse = os.getenv("GOOGLE_CSE_ID") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+            logger.warning(f"Job {job_id}: GOOGLE_API_KEY is {'SET' if google_key else 'NOT SET'}")
+            logger.warning(f"Job {job_id}: GOOGLE_CSE_ID/GOOGLE_SEARCH_ENGINE_ID is {'SET' if google_cse else 'NOT SET'}")
+            if not google_key:
+                logger.error(f"Job {job_id}: GOOGLE_API_KEY environment variable is missing!")
+            if not google_cse:
+                logger.error(f"Job {job_id}: GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID environment variable is missing!")
             # Fallback to simulation if no companies found
             await _fallback_simulation(job_id, job_data)
             return
@@ -336,10 +349,15 @@ app.add_middleware(
 # Include routes
 if OAUTH_ROUTES_AVAILABLE:
     app.include_router(google_oauth_router)
-    app.include_router(google_sheets_router)
     logger.info("OAuth routes enabled")
 else:
     logger.warning("OAuth routes disabled - missing dependencies")
+
+if SHEETS_ROUTES_AVAILABLE:
+    app.include_router(google_sheets_router)
+    logger.info("Google Sheets routes enabled")
+else:
+    logger.warning("Google Sheets routes disabled - missing dependencies")
 # app.include_router(makecom_router)
 # app.include_router(ai_chat_router)
 
@@ -435,6 +453,11 @@ async def health_check_simple():
 @app.get("/api")
 async def api_info():
     """API info endpoint"""
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    google_cse_id = os.getenv("GOOGLE_CSE_ID") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    claude_key = os.getenv("CLAUDE_API_KEY")
+    
     return {
         "message": "AI Lead Generation Platform API", 
         "version": "2.0.0",
@@ -442,10 +465,11 @@ async def api_info():
         "real_research_available": REAL_RESEARCH_AVAILABLE,
         "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
         "sheets_routes_available": SHEETS_ROUTES_AVAILABLE,
-        "google_api_key": "SET" if os.getenv("GOOGLE_API_KEY") else "NOT SET",
-        "google_cse_id": "SET" if os.getenv("GOOGLE_CSE_ID") else "NOT SET",
-        "openai_key": "SET" if os.getenv("OPENAI_API_KEY") else "NOT SET",
-        "claude_key": "SET" if os.getenv("CLAUDE_API_KEY") else "NOT SET"
+        "google_api_key": "SET" if google_api_key else "NOT SET",
+        "google_cse_id": "SET" if google_cse_id else "NOT SET",
+        "openai_key": "SET" if openai_key else "NOT SET",
+        "claude_key": "SET" if claude_key else "NOT SET",
+        "warning": "Web crawling requires GOOGLE_API_KEY and GOOGLE_CSE_ID (or GOOGLE_SEARCH_ENGINE_ID) to be set" if not (google_api_key and google_cse_id) else None
     }
 
 @app.get("/health")

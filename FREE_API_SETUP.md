@@ -32,13 +32,17 @@ Get your AI Lead Generation Platform working with real data using free APIs.
 
 ### Step 5: Test Your Setup
 ```bash
-# Set your environment variables
+# Set your environment variables (use either GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID)
 export GOOGLE_API_KEY=your_api_key_here
 export GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id_here
+# OR
+export GOOGLE_CSE_ID=your_search_engine_id_here
 
 # Test the integration
 python3 test_all_apis.py
 ```
+
+**Note:** The system supports both `GOOGLE_CSE_ID` and `GOOGLE_SEARCH_ENGINE_ID` environment variable names for backwards compatibility.
 
 ## 2. OpenAI API (Free - $5 credit)
 

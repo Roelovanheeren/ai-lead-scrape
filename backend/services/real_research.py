@@ -42,7 +42,8 @@ class RealResearchEngine:
     
     def __init__(self):
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.google_cse_id = os.getenv("GOOGLE_CSE_ID")
+        # Support both GOOGLE_CSE_ID and GOOGLE_SEARCH_ENGINE_ID for backwards compatibility
+        self.google_cse_id = os.getenv("GOOGLE_CSE_ID") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
         self.openai_key = os.getenv("OPENAI_API_KEY")
         self.claude_key = os.getenv("CLAUDE_API_KEY")
         
