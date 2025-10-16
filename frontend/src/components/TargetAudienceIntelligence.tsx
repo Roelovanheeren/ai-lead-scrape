@@ -371,23 +371,29 @@ export default function TargetAudienceIntelligence() {
     setIsConnectingSheet(true)
     
     try {
-      // Test Make.com connection first
-      const connectionTest = await fetch('/makecom/test-connection', {
+      // Test Google Sheets connection first
+      const connectionTest = await fetch('/google-sheets/test-connection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheet_url: newSheetUrl })
       })
       
       if (!connectionTest.ok) {
-        throw new Error('Make.com connection not configured. Please set up Make.com webhook first.')
+        throw new Error('Google Sheets connection failed. Please check your service account setup.')
       }
       
-      // Create a mock connected sheet for Make.com integration
+      const connectionResult = await connectionTest.json()
+      if (!connectionResult.success) {
+        throw new Error(connectionResult.error || 'Failed to connect to Google Sheets')
+      }
+      
+      // Create connected sheet for Google Sheets integration
       const newSheet: ConnectedSheet = {
-        id: `makecom_${Date.now()}`,
-        name: 'Google Sheets (via Make.com)',
+        id: `googlesheets_${Date.now()}`,
+        name: connectionResult.title || 'Google Sheets',
         url: newSheetUrl,
         lastSync: new Date().toISOString(),
-        columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status'],
+        columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status', 'Source', 'Date'],
         rowCount: 0,
         isConnected: true,
         permissions: {
@@ -440,12 +446,13 @@ export default function TargetAudienceIntelligence() {
         }
       ]
       
-      // Send leads to Make.com webhook
-      const response = await fetch('/makecom/sync-leads', {
+      // Send leads to Google Sheets
+      const response = await fetch('/google-sheets/sync-leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leads: mockLeadData,
+          sheet_url: connectedSheets[0]?.url || newSheetUrl,
           sheet_name: 'Leads'
         })
       })
