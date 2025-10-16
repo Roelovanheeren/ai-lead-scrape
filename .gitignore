@@ -1,51 +1,75 @@
-node_modules/
+# Environment variables
 .env
 .env.local
-outputs/*.parquet
-outputs/*.sqlite
-**/raw/
-**/evidence/
-**/.cache/
+.env.production
+.env.staging
+*.env
+
+# API Keys and Secrets
+**/api_keys.txt
+**/secrets.txt
+**/credentials.json
+**/service-account.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Client data and lead information
-AG_WILLIAMS_*.csv
-AG_WILLIAMS_*.md
-AG_WILLIAMS_FINAL/
-AG_WILLIAMS_FINAL.zip
-ALL_LEADS_*.md
-CLIENT_*.md
-FINAL_*.md
-FINAL_PACKAGE/
-PM_AUDIT_*.md
-**/MASTER_LEADS*.csv
-outputs/*_priority_*.csv
-outputs/*_scored.csv
-outputs/master_*.csv
-outputs/culinary_*.csv
-outputs/healthcare_*.csv
-outputs/pharma_*.csv
-outputs/leads_*.csv
-shared/final_client_pack/
-shared/final_client_pack.zip
-shared/*_final.md
-shared/*_step*.txt
-shared/inbox_*.md
-shared/messages/
-shared/replies/
-shared/status/
-shared/tasks/
-shared/approvals/
-shared/logs/
-shared/roots.env
-shared/vertical_queue.txt
-shared/crawler_mode.txt
-shared/crawl_slots.txt
-verticals/culinary/
-verticals/healthcare/
-verticals/pharma/
-verticals/*/parsed/*.jsonl
-*.zip
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# Package archives
-EPOXY_LEADS_*.zip
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+
+# Railway
+.railway/
