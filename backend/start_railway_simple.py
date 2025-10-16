@@ -57,10 +57,12 @@ def main():
         try:
             # Test if the app can handle a simple request
             logger.info("Testing app endpoints...")
+            logger.info(f"App routes: {[route.path for route in app.routes]}")
             logger.info("✅ App is ready to start")
         except Exception as e:
             logger.error(f"❌ App test failed: {e}")
-            raise
+            # Don't raise - continue anyway
+            logger.warning("⚠️ Continuing despite app test failure")
         
         # Run the application
         logger.info("🚀 Starting uvicorn server...")

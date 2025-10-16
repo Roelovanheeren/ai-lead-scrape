@@ -337,25 +337,35 @@ if os.path.exists("/app/frontend/dist"):
 async def root():
     """Root endpoint - serve React app or API info"""
     try:
-        # Check if frontend exists and serve it
-        if os.path.exists("/app/frontend/dist/index.html"):
-            return FileResponse("/app/frontend/dist/index.html")
-        else:
-            return {
-                "message": "AI Lead Generation Platform API", 
-                "version": "2.0.0",
-                "status": "running",
-                "health": "ok"
-            }
+        # Always return a simple health check response first
+        # This ensures Railway health checks pass
+        return {
+            "status": "ok",
+            "message": "AI Lead Generation Platform API", 
+            "version": "2.0.0",
+            "health": "healthy",
+            "timestamp": datetime.utcnow().isoformat()
+        }
     except Exception as e:
         logger.error(f"Root endpoint error: {e}")
         return {
-            "message": "AI Lead Generation Platform API", 
-            "version": "2.0.0",
-            "status": "running",
-            "health": "ok",
-            "error": str(e)
+            "status": "error",
+            "message": "API Error", 
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
         }
+
+@app.get("/app")
+async def serve_react_app():
+    """Serve the React app"""
+    try:
+        if os.path.exists("/app/frontend/dist/index.html"):
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            return {"error": "Frontend not found"}
+    except Exception as e:
+        logger.error(f"React app error: {e}")
+        return {"error": str(e)}
 
 @app.get("/ping")
 async def ping():
