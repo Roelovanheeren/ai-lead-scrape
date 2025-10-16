@@ -4,6 +4,7 @@ Handles user authentication and Google Sheets access
 """
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 import logging
@@ -50,13 +51,25 @@ async def handle_google_callback(
     code: str = Query(..., description="Authorization code from Google"),
     state: str = Query(..., description="State parameter for security")
 ):
-    """Handle Google OAuth callback"""
+    """Handle Google OAuth callback and redirect to frontend"""
     try:
         result = google_oauth_service.handle_callback(code, state)
-        return result
+        
+        if result.get("success"):
+            # Redirect to Target Audience Intelligence page with success message
+            redirect_url = "/target-audience?connected=true&message=Google account connected successfully"
+            return RedirectResponse(url=redirect_url, status_code=302)
+        else:
+            # Redirect to Target Audience Intelligence page with error message
+            error_message = result.get("error", "Authentication failed")
+            redirect_url = f"/target-audience?error=true&message={error_message}"
+            return RedirectResponse(url=redirect_url, status_code=302)
+            
     except Exception as e:
         logger.error(f"Error handling Google callback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Redirect to Target Audience Intelligence page with error message
+        redirect_url = f"/target-audience?error=true&message=Authentication error: {str(e)}"
+        return RedirectResponse(url=redirect_url, status_code=302)
 
 @router.post("/sheets")
 async def get_user_sheets(request: AuthRequest):

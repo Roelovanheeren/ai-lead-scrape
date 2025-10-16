@@ -104,7 +104,26 @@ export default function TargetAudienceIntelligence() {
   const [isConnectingSheet, setIsConnectingSheet] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [leadData, setLeadData] = useState<LeadData[]>([])
+  const [connectionMessage, setConnectionMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Handle URL parameters for OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const connected = urlParams.get('connected')
+    const error = urlParams.get('error')
+    const message = urlParams.get('message')
+    
+    if (connected === 'true' && message) {
+      setConnectionMessage(message)
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (error === 'true' && message) {
+      setSheetConnectionError(message)
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   // Load persisted data on component mount
   useEffect(() => {
@@ -889,6 +908,25 @@ export default function TargetAudienceIntelligence() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Connection Messages */}
+            {connectionMessage && (
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center gap-2 text-green-400">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">{connectionMessage}</span>
+                </div>
+              </div>
+            )}
+
+            {sheetConnectionError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div className="flex items-center gap-2 text-red-400">
+                  <X className="h-4 w-4" />
+                  <span className="text-sm font-medium">{sheetConnectionError}</span>
+                </div>
+              </div>
+            )}
 
             {/* Connected Sheets */}
             {connectedSheets.length > 0 && (
