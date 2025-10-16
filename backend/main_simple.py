@@ -5,10 +5,13 @@ FastAPI Backend with basic functionality
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,14 +32,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files (React app)
+if os.path.exists("/app/frontend/dist"):
+    app.mount("/static", StaticFiles(directory="/app/frontend/dist"), name="static")
+
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "AI Lead Generation Platform API", 
-        "version": "2.0.0",
-        "status": "running"
-    }
+    """Root endpoint - serve React app"""
+    if os.path.exists("/app/frontend/dist/index.html"):
+        return FileResponse("/app/frontend/dist/index.html")
+    else:
+        return {
+            "message": "AI Lead Generation Platform API", 
+            "version": "2.0.0",
+            "status": "running"
+        }
 
 @app.get("/health")
 async def health_check():

@@ -17,7 +17,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
-    nginx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -32,13 +31,9 @@ COPY backend/ .
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/sites-available/default
-
 # Create startup script
 RUN echo '#!/bin/bash' > /app/start.sh && \
-    echo 'python start_railway_simple.py &' >> /app/start.sh && \
-    echo 'nginx -g "daemon off;"' >> /app/start.sh && \
+    echo 'python start_railway_simple.py' >> /app/start.sh && \
     chmod +x /app/start.sh
 
 # Create non-root user
