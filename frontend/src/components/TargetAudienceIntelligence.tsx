@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { googleSheetsService, GoogleSheetData } from '@/lib/googleSheets'
 
 interface UploadedDocument {
   id: string
@@ -129,7 +130,7 @@ export default function TargetAudienceIntelligence() {
   })
   const [isGeneratingProfile, setIsGeneratingProfile] = useState(false)
   const [connectedSheets, setConnectedSheets] = useState<GoogleSheet[]>([])
-  const [newSheetUrl, setNewSheetUrl] = useState('')
+  const [newSheetUrl, setNewSheetUrl] = useState('https://docs.google.com/spreadsheets/d/1fIUwNP7cOhIvOlKpDMIe2ukfmLoCGxEs9MHrRKZj1yA/edit?usp=sharing')
   const [isConnectingSheet, setIsConnectingSheet] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [leadData, setLeadData] = useState<LeadData[]>([])
@@ -237,21 +238,31 @@ export default function TargetAudienceIntelligence() {
     
     setIsConnectingSheet(true)
     
-    // Simulate Google Sheets API connection
-    setTimeout(() => {
-      const newSheet: GoogleSheet = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: 'Lead Database',
-        url: newSheetUrl,
-        columns: ['Company', 'Contact', 'Email', 'Phone', 'Title', 'Industry', 'Location', 'Message', 'Confidence', 'Source'],
-        lastSync: new Date(),
-        isConnected: true
-      }
+    try {
+      // Use the real Google Sheets service
+      const sheetData = await googleSheetsService.readSheetData(newSheetUrl)
       
-      setConnectedSheets(prev => [...prev, newSheet])
-      setNewSheetUrl('')
+      if (sheetData) {
+        const newSheet: GoogleSheet = {
+          id: sheetData.id,
+          name: sheetData.name,
+          url: sheetData.url,
+          columns: sheetData.columns,
+          lastSync: sheetData.lastSync,
+          isConnected: sheetData.isConnected
+        }
+        
+        setConnectedSheets(prev => [...prev, newSheet])
+        setNewSheetUrl('')
+        setIsConnectingSheet(false)
+      } else {
+        throw new Error('Failed to connect to Google Sheet')
+      }
+    } catch (error) {
+      console.error('Error connecting to Google Sheet:', error)
       setIsConnectingSheet(false)
-    }, 2000)
+      // You could add a toast notification here
+    }
   }
 
   const syncWithSheets = async () => {
