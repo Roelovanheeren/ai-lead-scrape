@@ -8,7 +8,10 @@ from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 import logging
 
-from ..services.google_oauth_service import google_oauth_service
+try:
+    from services.google_oauth_service import google_oauth_service
+except ImportError:
+    from ..services.google_oauth_service import google_oauth_service
 
 logger = logging.getLogger(__name__)
 

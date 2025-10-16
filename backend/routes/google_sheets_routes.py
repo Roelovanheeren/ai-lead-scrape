@@ -8,7 +8,10 @@ from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 import logging
 
-from ..services.google_sheets_service import google_sheets_service
+try:
+    from services.google_sheets_service import google_sheets_service
+except ImportError:
+    from ..services.google_sheets_service import google_sheets_service
 
 logger = logging.getLogger(__name__)
 
