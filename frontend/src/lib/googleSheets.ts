@@ -23,8 +23,9 @@ class GoogleSheetsService {
 
   constructor() {
     // These would be set from environment variables in production
-    this.apiKey = import.meta.env.VITE_GOOGLE_API_KEY || ''
-    this.clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+    // For now, we'll use empty strings since we're using mock data
+    this.apiKey = ''
+    this.clientId = ''
   }
 
   /**
