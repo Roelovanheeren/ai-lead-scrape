@@ -29,6 +29,22 @@ try:
 except ImportError as e:
     REAL_RESEARCH_AVAILABLE = False
     logger.warning(f"⚠️ Real research engine not available: {e}")
+    logger.warning("⚠️ Using fallback simulation mode")
+    # Fallback functions
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+except Exception as e:
+    REAL_RESEARCH_AVAILABLE = False
+    logger.error(f"❌ Error loading real research engine: {e}")
+    logger.warning("⚠️ Using fallback simulation mode")
     # Fallback functions
     async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
         return {"keywords": prompt.split()[:10], "industry": "Technology"}
@@ -445,5 +461,9 @@ async def serve_react_app(path: str):
         return {"detail": "Not Found"}
 
 if __name__ == "__main__":
+    logger.info("🚀 Starting AI Lead Generation Platform")
+    logger.info(f"🔧 Real research available: {REAL_RESEARCH_AVAILABLE}")
+    logger.info(f"🔧 OAuth routes available: {OAUTH_ROUTES_AVAILABLE}")
+    logger.info(f"🔧 Google Sheets routes available: {SHEETS_ROUTES_AVAILABLE}")
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

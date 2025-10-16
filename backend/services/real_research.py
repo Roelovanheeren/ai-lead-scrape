@@ -5,7 +5,6 @@ Replaces simulation with actual Google Custom Search, company research, and outr
 
 import os
 import asyncio
-import aiohttp
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -13,18 +12,28 @@ import json
 import re
 from urllib.parse import urlparse, urljoin
 
+# Import HTTP client
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    logging.warning("aiohttp not available, using requests fallback")
+
 # Import AI clients
 try:
     from openai import AsyncOpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+    logging.warning("OpenAI not available")
 
 try:
     import anthropic
     CLAUDE_AVAILABLE = True
 except ImportError:
     CLAUDE_AVAILABLE = False
+    logging.warning("Anthropic Claude not available")
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +132,10 @@ class RealResearchEngine:
         
         logger.info(f"Searching with queries: {search_queries}")
         
+        if not AIOHTTP_AVAILABLE:
+            logger.warning("aiohttp not available, returning empty company list")
+            return []
+            
         async with aiohttp.ClientSession() as session:
             for query in search_queries[:3]:  # Limit to 3 queries to avoid rate limits
                 try:
@@ -152,8 +165,12 @@ class RealResearchEngine:
         logger.info(f"Found {len(unique_companies)} unique companies")
         return unique_companies[:target_count]
     
-    async def _search_google(self, session: aiohttp.ClientSession, query: str, max_results: int) -> List[Dict[str, Any]]:
+    async def _search_google(self, session, query: str, max_results: int) -> List[Dict[str, Any]]:
         """Search Google Custom Search API"""
+        if not AIOHTTP_AVAILABLE:
+            logger.warning("aiohttp not available, skipping Google search")
+            return []
+            
         url = "https://www.googleapis.com/customsearch/v1"
         params = {
             "key": self.google_api_key,
@@ -162,30 +179,34 @@ class RealResearchEngine:
             "num": min(max_results, 10)  # Google API limit
         }
         
-        async with session.get(url, params=params) as response:
-            if response.status != 200:
-                logger.error(f"Google API error: {response.status}")
-                return []
-            
-            data = await response.json()
-            companies = []
-            
-            for item in data.get("items", []):
-                try:
-                    company = {
-                        "name": self._extract_company_name(item.get("title", "")),
-                        "website": item.get("link", ""),
-                        "description": item.get("snippet", ""),
-                        "domain": self._extract_domain(item.get("link", "")),
-                        "source": "Google Search",
-                        "search_query": query
-                    }
-                    companies.append(company)
-                except Exception as e:
-                    logger.error(f"Error processing search result: {e}")
-                    continue
-            
-            return companies
+        try:
+            async with session.get(url, params=params) as response:
+                if response.status != 200:
+                    logger.error(f"Google API error: {response.status}")
+                    return []
+                
+                data = await response.json()
+                companies = []
+                
+                for item in data.get("items", []):
+                    try:
+                        company = {
+                            "name": self._extract_company_name(item.get("title", "")),
+                            "website": item.get("link", ""),
+                            "description": item.get("snippet", ""),
+                            "domain": self._extract_domain(item.get("link", "")),
+                            "source": "Google Search",
+                            "search_query": query
+                        }
+                        companies.append(company)
+                    except Exception as e:
+                        logger.error(f"Error processing search result: {e}")
+                        continue
+                
+                return companies
+        except Exception as e:
+            logger.error(f"Error searching Google: {e}")
+            return []
     
     def _extract_company_name(self, title: str) -> str:
         """Extract company name from search result title"""
@@ -232,7 +253,7 @@ class RealResearchEngine:
     
     async def _scrape_website(self, url: str) -> str:
         """Scrape company website content"""
-        if not url:
+        if not url or not AIOHTTP_AVAILABLE:
             return ""
         
         try:
@@ -271,7 +292,7 @@ class RealResearchEngine:
     
     async def _analyze_tech_stack(self, website: str) -> List[str]:
         """Analyze technology stack from website"""
-        if not website:
+        if not website or not AIOHTTP_AVAILABLE:
             return []
         
         # Basic tech stack detection (in production, use proper analysis)
