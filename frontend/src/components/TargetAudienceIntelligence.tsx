@@ -15,7 +15,9 @@ import {
   Table,
   Link,
   Database,
-  Sync,
+  RotateCcw,
+  Edit,
+  Trash2,
   ExternalLink
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -687,7 +689,7 @@ export default function TargetAudienceIntelligence() {
                       {isSyncing ? (
                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
-                        <Sync className="h-4 w-4 mr-2" />
+                        <RotateCcw className="h-4 w-4 mr-2" />
                       )}
                       {isSyncing ? 'Syncing...' : 'Sync All'}
                     </Button>
