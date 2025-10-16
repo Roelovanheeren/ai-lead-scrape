@@ -570,7 +570,7 @@ export default function JobWizard({}: JobWizardProps) {
                           {Object.entries(headerMapping.mapping).map(([header, field]) => (
                             <div key={header} className="flex items-center gap-2 text-sm">
                               <span className="text-muted-foreground">{header}:</span>
-                              <span className="font-medium">{field}</span>
+                              <span className="font-medium">{String(field)}</span>
                             </div>
                           ))}
                         </div>
