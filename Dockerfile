@@ -32,21 +32,8 @@ COPY backend/ .
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# Create nginx config
-RUN echo 'server {' > /etc/nginx/sites-available/default && \
-    echo '    listen $PORT;' >> /etc/nginx/sites-available/default && \
-    echo '    server_name _;' >> /etc/nginx/sites-available/default && \
-    echo '    root /app/frontend/dist;' >> /etc/nginx/sites-available/default && \
-    echo '    index index.html;' >> /etc/nginx/sites-available/default && \
-    echo '    location / {' >> /etc/nginx/sites-available/default && \
-    echo '        try_files $uri $uri/ /index.html;' >> /etc/nginx/sites-available/default && \
-    echo '    }' >> /etc/nginx/sites-available/default && \
-    echo '    location /api {' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_pass http://localhost:8000;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header Host $host;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/sites-available/default && \
-    echo '    }' >> /etc/nginx/sites-available/default && \
-    echo '}' >> /etc/nginx/sites-available/default
+# Copy nginx config
+COPY nginx.conf /etc/nginx/sites-available/default
 
 # Create startup script
 RUN echo '#!/bin/bash' > /app/start.sh && \
