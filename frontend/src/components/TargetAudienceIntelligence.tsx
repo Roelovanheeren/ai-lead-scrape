@@ -105,6 +105,11 @@ export default function TargetAudienceIntelligence() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [leadData, setLeadData] = useState<LeadData[]>([])
   const [connectionMessage, setConnectionMessage] = useState('')
+  const [selectedSheet, setSelectedSheet] = useState<ConnectedSheet | null>(null)
+  const [sheetHeaders, setSheetHeaders] = useState<string[]>([])
+  const [headerMapping, setHeaderMapping] = useState<Record<string, string>>({})
+  const [isLoadingHeaders, setIsLoadingHeaders] = useState(false)
+  const [isMappingHeaders, setIsMappingHeaders] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Handle URL parameters for OAuth callback
@@ -445,6 +450,71 @@ export default function TargetAudienceIntelligence() {
       }
     } catch (error) {
       console.error('Error loading user sheets:', error)
+    }
+  }
+
+  const selectSheet = async (sheet: ConnectedSheet) => {
+    setSelectedSheet(sheet)
+    setIsLoadingHeaders(true)
+    
+    try {
+      // Extract sheet ID from the sheet object
+      const sheetId = sheet.id.replace('googlesheets_', '')
+      
+      // Read sheet headers
+      const response = await fetch(`/auth/google/sheets/${sheetId}/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          user_id: 'user_123',
+          range: 'A1:Z1' // Read first row for headers
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data.length > 0) {
+          const headers = result.data[0] // First row contains headers
+          setSheetHeaders(headers)
+          
+          // Initialize header mapping with empty values
+          const initialMapping: Record<string, string> = {}
+          headers.forEach((header: string) => {
+            initialMapping[header] = ''
+          })
+          setHeaderMapping(initialMapping)
+        }
+      }
+    } catch (error) {
+      console.error('Error reading sheet headers:', error)
+    } finally {
+      setIsLoadingHeaders(false)
+    }
+  }
+
+  const saveHeaderMapping = async () => {
+    setIsMappingHeaders(true)
+    
+    try {
+      // Save header mapping to knowledge base
+      const mappingData = {
+        sheetId: selectedSheet?.id,
+        sheetName: selectedSheet?.name,
+        headers: sheetHeaders,
+        mapping: headerMapping,
+        timestamp: new Date().toISOString()
+      }
+      
+      // Save to persistent storage
+      await storageService.saveHeaderMapping(mappingData)
+      
+      console.log('Header mapping saved:', mappingData)
+      setConnectionMessage('Sheet configuration saved successfully!')
+    } catch (error) {
+      console.error('Error saving header mapping:', error)
+      setSheetConnectionError('Failed to save sheet configuration')
+    } finally {
+      setIsMappingHeaders(false)
     }
   }
 
@@ -926,6 +996,121 @@ export default function TargetAudienceIntelligence() {
                   <span className="text-sm font-medium">{sheetConnectionError}</span>
                 </div>
               </div>
+            )}
+
+            {/* Sheet Selection */}
+            {connectedSheets.length > 0 && !selectedSheet && (
+              <Card className="shadow-glow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Select Target Sheet
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Choose which Google Sheet to use for lead data synchronization
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3">
+                    {connectedSheets.map((sheet) => (
+                      <div
+                        key={sheet.id}
+                        className="p-4 bg-card/50 rounded-lg border border-white/10 hover:border-teal-500/50 cursor-pointer transition-colors"
+                        onClick={() => selectSheet(sheet)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-teal-500/20 rounded-lg">
+                              <Table className="h-4 w-4 text-teal-400" />
+                            </div>
+                            <div>
+                              <h4 className="font-medium">{sheet.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Last synced: {new Date(sheet.lastSync).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <Button variant="outline" size="sm" className="border-white/20">
+                            Select
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Header Mapping */}
+            {selectedSheet && sheetHeaders.length > 0 && (
+              <Card className="shadow-glow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Configure Data Mapping
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Map your research data fields to the columns in "{selectedSheet.name}"
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-4">
+                    {sheetHeaders.map((header, index) => (
+                      <div key={index} className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-muted-foreground">
+                            {header}
+                          </label>
+                          <select
+                            value={headerMapping[header] || ''}
+                            onChange={(e) => setHeaderMapping(prev => ({
+                              ...prev,
+                              [header]: e.target.value
+                            }))}
+                            className="w-full mt-1 p-2 bg-card border border-white/20 rounded-lg text-sm"
+                          >
+                            <option value="">Select data field...</option>
+                            <option value="company">Company Name</option>
+                            <option value="contact_name">Contact Name</option>
+                            <option value="email">Email Address</option>
+                            <option value="phone">Phone Number</option>
+                            <option value="industry">Industry</option>
+                            <option value="location">Location</option>
+                            <option value="status">Status</option>
+                            <option value="source">Source</option>
+                            <option value="date">Date Added</option>
+                            <option value="message">Outreach Message</option>
+                            <option value="notes">Notes</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2 pt-4">
+                    <Button 
+                      onClick={saveHeaderMapping}
+                      disabled={isMappingHeaders}
+                      className="shadow-glow"
+                    >
+                      {isMappingHeaders ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      )}
+                      {isMappingHeaders ? 'Saving...' : 'Save Configuration'}
+                    </Button>
+                    <Button 
+                      onClick={() => setSelectedSheet(null)}
+                      variant="outline"
+                      className="border-white/20"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Connected Sheets */}

@@ -87,6 +87,14 @@ export interface ChatMessage {
   }
 }
 
+export interface HeaderMapping {
+  sheetId: string
+  sheetName: string
+  headers: string[]
+  mapping: Record<string, string>
+  timestamp: string
+}
+
 class StorageService {
   private readonly STORAGE_KEYS = {
     USER_PROFILE: 'elvision_user_profile',
@@ -94,7 +102,8 @@ class StorageService {
     UPLOADED_DOCUMENTS: 'elvision_uploaded_documents',
     AUDIENCE_PROFILES: 'elvision_audience_profiles',
     CHAT_HISTORY: 'elvision_chat_history',
-    APP_SETTINGS: 'elvision_app_settings'
+    APP_SETTINGS: 'elvision_app_settings',
+    HEADER_MAPPINGS: 'elvision_header_mappings'
   }
 
   // User Profile Management
@@ -339,6 +348,38 @@ class StorageService {
     } catch (error) {
       console.error('Failed to import data:', error)
       throw error
+    }
+  }
+
+  // Header Mapping Management
+  async saveHeaderMapping(mapping: HeaderMapping): Promise<void> {
+    try {
+      const existingMappings = await this.getHeaderMappings()
+      const updatedMappings = [...existingMappings, mapping]
+      localStorage.setItem(this.STORAGE_KEYS.HEADER_MAPPINGS, JSON.stringify(updatedMappings))
+    } catch (error) {
+      console.error('Failed to save header mapping:', error)
+      throw error
+    }
+  }
+
+  async getHeaderMappings(): Promise<HeaderMapping[]> {
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEYS.HEADER_MAPPINGS)
+      return data ? JSON.parse(data) : []
+    } catch (error) {
+      console.error('Failed to get header mappings:', error)
+      return []
+    }
+  }
+
+  async getHeaderMappingBySheetId(sheetId: string): Promise<HeaderMapping | null> {
+    try {
+      const mappings = await this.getHeaderMappings()
+      return mappings.find(mapping => mapping.sheetId === sheetId) || null
+    } catch (error) {
+      console.error('Failed to get header mapping by sheet ID:', error)
+      return null
     }
   }
 }
