@@ -48,8 +48,8 @@ class GoogleAuthService {
       // Initialize the API
       await this.gapi.load('client:auth2', async () => {
         await this.gapi.client.init({
-          apiKey: process.env.REACT_APP_GOOGLE_API_KEY || '',
-          clientId: process.env.REACT_APP_GOOGLE_CLIENT_ID || '',
+          apiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
+          clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
           discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
           scope: 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.readonly'
         })

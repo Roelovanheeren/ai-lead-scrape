@@ -25,42 +25,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { googleSheetsService, GoogleSheetData } from '@/lib/googleSheets'
-import { storageService, ConnectedSheet, UploadedDocument, AudienceProfile, ChatMessage } from '@/lib/storage'
+import { storageService, ConnectedSheet, UploadedDocument as StorageUploadedDocument, AudienceProfile as StorageAudienceProfile, ChatMessage as StorageChatMessage } from '@/lib/storage'
 
 // UploadedDocument interface is now imported from storage service
 
-interface ChatMessage {
-  id: string
-  type: 'user' | 'ai'
-  content: string
-  timestamp: Date
-}
+// ChatMessage interface is now imported from storage service
 
-interface AudienceProfile {
-  demographics: {
-    ageRange: string
-    gender: string
-    location: string
-    income: string
-  }
-  psychographics: {
-    interests: string[]
-    painPoints: string[]
-    goals: string[]
-    values: string[]
-  }
-  firmographics: {
-    companySize: string
-    industry: string[]
-    jobTitles: string[]
-    technology: string[]
-  }
-  behavior: {
-    channels: string[]
-    content: string[]
-    timing: string
-  }
-}
+// AudienceProfile interface is now imported from storage service
 
 interface GoogleSheet {
   id: string
@@ -123,7 +94,7 @@ export default function TargetAudienceIntelligence() {
     }
   })
   const [isGeneratingProfile, setIsGeneratingProfile] = useState(false)
-  const [connectedSheets, setConnectedSheets] = useState<GoogleSheet[]>([])
+  const [connectedSheets, setConnectedSheets] = useState<ConnectedSheet[]>([])
   const [newSheetUrl, setNewSheetUrl] = useState('https://docs.google.com/spreadsheets/d/1fIUwNP7cOhIvOlKpDMIe2ukfmLoCGxEs9MHrRKZj1yA/edit?usp=sharing')
   const [isConnectingSheet, setIsConnectingSheet] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -140,7 +111,7 @@ export default function TargetAudienceIntelligence() {
 
         // Load uploaded documents
         const documents = await storageService.getUploadedDocuments()
-        setUploadedDocuments(documents)
+        setUploadedDocs(documents)
 
         // Load audience profiles
         const profiles = await storageService.getAudienceProfiles()
@@ -164,7 +135,7 @@ export default function TargetAudienceIntelligence() {
     if (!files) return
 
     for (const file of Array.from(files)) {
-      const newDoc: UploadedDocument = {
+      const newDoc: StorageUploadedDocument = {
         id: Math.random().toString(36).substr(2, 9),
         name: file.name,
         size: file.size,
@@ -196,7 +167,7 @@ export default function TargetAudienceIntelligence() {
   const sendMessage = async () => {
     if (!currentMessage.trim()) return
 
-    const userMessage: ChatMessage = {
+    const userMessage: StorageChatMessage = {
       id: Math.random().toString(36).substr(2, 9),
       role: 'user',
       content: currentMessage,
@@ -216,7 +187,7 @@ export default function TargetAudienceIntelligence() {
 
     // Simulate AI response
     setTimeout(async () => {
-      const aiResponse: ChatMessage = {
+      const aiResponse: StorageChatMessage = {
         id: Math.random().toString(36).substr(2, 9),
         role: 'assistant',
         content: generateAIResponse(currentMessage),
@@ -482,7 +453,7 @@ export default function TargetAudienceIntelligence() {
                           <div>
                             <p className="font-medium">{doc.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {formatFileSize(doc.size)} • {doc.uploadedAt.toLocaleDateString()}
+                              {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
