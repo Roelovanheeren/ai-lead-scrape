@@ -343,17 +343,23 @@ async def root():
     """Root endpoint - serve React app or API info"""
     logger.info("🔍 Root endpoint called!")
     try:
-        # Always return a simple health check response first
-        # This ensures Railway health checks pass
-        response = {
-            "status": "ok",
-            "message": "AI Lead Generation Platform API", 
-            "version": "2.0.0",
-            "health": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        logger.info(f"✅ Root endpoint returning: {response}")
-        return response
+        # Try to serve the React app first
+        if os.path.exists("/app/frontend/dist/index.html"):
+            logger.info("✅ Serving React app from /app/frontend/dist/index.html")
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            logger.warning("⚠️ React app not found, returning API info")
+            # Fallback to API info if React app not available
+            response = {
+                "status": "ok",
+                "message": "AI Lead Generation Platform API", 
+                "version": "2.0.0",
+                "health": "healthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "note": "React app not found, serving API info"
+            }
+            logger.info(f"✅ Root endpoint returning: {response}")
+            return response
     except Exception as e:
         logger.error(f"❌ Root endpoint error: {e}")
         import traceback
@@ -390,6 +396,31 @@ async def ping():
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return {"status": "error", "message": str(e)}
+
+@app.get("/health-check")
+async def health_check_simple():
+    """Simple health check endpoint for Railway"""
+    logger.info("🔍 Health check endpoint called!")
+    try:
+        response = {
+            "status": "ok",
+            "message": "AI Lead Generation Platform API", 
+            "version": "2.0.0",
+            "health": "healthy",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        logger.info(f"✅ Health check returning: {response}")
+        return response
+    except Exception as e:
+        logger.error(f"❌ Health check error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {
+            "status": "error",
+            "message": "Health check failed", 
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 @app.get("/api")
 async def api_info():
