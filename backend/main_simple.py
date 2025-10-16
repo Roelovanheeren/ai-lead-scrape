@@ -34,6 +34,7 @@ app.add_middleware(
 
 # Mount static files (React app)
 if os.path.exists("/app/frontend/dist"):
+    app.mount("/assets", StaticFiles(directory="/app/frontend/dist/assets"), name="assets")
     app.mount("/static", StaticFiles(directory="/app/frontend/dist"), name="static")
 
 @app.get("/")
