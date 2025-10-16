@@ -185,7 +185,7 @@ class GoogleOAuthService:
             logger.error(f"Error getting user sheets: {e}")
             return {"success": False, "error": str(e)}
     
-    def read_sheet_data(self, user_id: str, sheet_id: str, range_name: str = "A:Z") -> Dict[str, Any]:
+    def read_sheet_data(self, user_id: str, sheet_id: str, range_name: str = None) -> Dict[str, Any]:
         """Read data from user's Google Sheet"""
         try:
             if not GOOGLE_OAUTH_AVAILABLE:
@@ -198,6 +198,24 @@ class GoogleOAuthService:
             # Build Sheets service
             sheets_service = build('sheets', 'v4', credentials=credentials)
             
+            # If no range specified, get the entire sheet
+            if not range_name:
+                # First get sheet metadata to determine the range
+                sheet_metadata = sheets_service.spreadsheets().get(
+                    spreadsheetId=sheet_id
+                ).execute()
+                
+                # Get the first sheet's range
+                sheets = sheet_metadata.get('sheets', [])
+                if sheets:
+                    first_sheet = sheets[0]
+                    sheet_properties = first_sheet.get('properties', {})
+                    sheet_title = sheet_properties.get('title', 'Sheet1')
+                    # Read all columns and rows - use a large range to get everything
+                    range_name = f"{sheet_title}!A:ZZ"  # Read all columns A-ZZ to handle more data
+                else:
+                    range_name = "A:ZZ"
+            
             # Read data
             result = sheets_service.spreadsheets().values().get(
                 spreadsheetId=sheet_id,
@@ -206,12 +224,18 @@ class GoogleOAuthService:
             
             values = result.get('values', [])
             
+            logger.info(f"Read {len(values)} rows from sheet {sheet_id}")
+            if values:
+                logger.info(f"First row (headers): {values[0] if values else 'No data'}")
+                logger.info(f"Sample data: {values[1:3] if len(values) > 1 else 'No data rows'}")
+            
             return {
                 "success": True,
                 "data": values,
                 "values": values,
                 "rows": values,
-                "row_count": len(values)
+                "row_count": len(values),
+                "range_used": range_name
             }
             
         except HttpError as e:

@@ -67,6 +67,7 @@ export default function JobWizard({}: JobWizardProps) {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([])
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false)
   const [isLoadingExistingLeads, setIsLoadingExistingLeads] = useState(false)
+  const [headerMapping, setHeaderMapping] = useState<any>(null)
   const [formData, setFormData] = useState({
     // Step 1: Targeting
     industry: '',
@@ -107,6 +108,12 @@ export default function JobWizard({}: JobWizardProps) {
         // Load active connected sheet
         const activeSheet = await storageService.getActiveConnectedSheet()
         setActiveConnectedSheet(activeSheet)
+        
+        // Load header mapping for this sheet
+        if (activeSheet) {
+          const mapping = await storageService.getHeaderMappingBySheetId(activeSheet.id)
+          setHeaderMapping(mapping)
+        }
         
         // Load existing leads if sheet is connected
         if (activeSheet) {
@@ -235,11 +242,12 @@ export default function JobWizard({}: JobWizardProps) {
         exclude_keywords: formData.excludeKeywords,
         data_sources: formData.dataSources,
         verification_level: formData.verificationLevel as 'basic' | 'standard' | 'premium',
-        output_format: formData.outputFormat as 'basic' | 'detailed' | 'comprehensive',
         // Add existing leads exclusion
         exclude_existing_leads: existingLeads.length > 0,
         existing_leads: existingLeads,
-        connected_sheet_id: activeConnectedSheet?.id
+        connected_sheet_id: activeConnectedSheet?.id,
+        header_mapping: headerMapping?.mapping,
+        output_format: headerMapping ? 'sheet_mapped' : formData.outputFormat
       }
       
       const response = await apiClient.createJob(jobData)
@@ -550,19 +558,41 @@ export default function JobWizard({}: JobWizardProps) {
                     </div>
                   )}
 
-                  {/* Output Format */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium mb-2">Output Format</label>
-                    <select
-                      value={formData.outputFormat}
-                      onChange={(e) => setFormData(prev => ({ ...prev, outputFormat: e.target.value }))}
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
-                    >
-                      <option value="basic">Basic (Name, Company, Email)</option>
-                      <option value="detailed">Detailed (Full contact info + company details)</option>
-                      <option value="comprehensive">Comprehensive (Full research + outreach suggestions)</option>
-                    </select>
-                  </div>
+                  {/* Output Format - Based on Sheet Headers */}
+                  {headerMapping && (
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-2">Output Format (Based on Connected Sheet)</label>
+                      <div className="p-4 bg-card/50 rounded-lg border border-white/10">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Data will be formatted according to your connected sheet headers:
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(headerMapping.mapping).map(([header, field]) => (
+                            <div key={header} className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">{header}:</span>
+                              <span className="font-medium">{field}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fallback Output Format */}
+                  {!headerMapping && (
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-2">Output Format</label>
+                      <select
+                        value={formData.outputFormat}
+                        onChange={(e) => setFormData(prev => ({ ...prev, outputFormat: e.target.value }))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      >
+                        <option value="basic">Basic (Name, Company, Email)</option>
+                        <option value="detailed">Detailed (Full contact info + company details)</option>
+                        <option value="comprehensive">Comprehensive (Full research + outreach suggestions)</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
