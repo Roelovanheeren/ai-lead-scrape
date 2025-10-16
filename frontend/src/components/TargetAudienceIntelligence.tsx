@@ -366,8 +366,6 @@ export default function TargetAudienceIntelligence() {
   }
 
   const connectGoogleSheet = async () => {
-    if (!newSheetUrl.trim()) return
-    
     setIsConnectingSheet(true)
     
     try {
@@ -387,37 +385,47 @@ export default function TargetAudienceIntelligence() {
         throw new Error(authResult.error || 'Failed to start Google authentication')
       }
       
-      // For demo purposes, simulate successful connection
-      // In real implementation, handle OAuth callback
-      const newSheet: ConnectedSheet = {
-        id: `googlesheets_${Date.now()}`,
-        name: 'Google Sheets (OAuth Connected)',
-        url: newSheetUrl,
-        lastSync: new Date().toISOString(),
-        columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status', 'Source', 'Date'],
-        rowCount: 0,
-        isConnected: true,
-        permissions: {
-          canRead: true,
-          canWrite: true,
-          canShare: false
-        }
-      }
+      // Redirect user to Google OAuth
+      window.location.href = authResult.auth_url
       
-      // Save to persistent storage
-      try {
-        await storageService.addConnectedSheet(newSheet)
-        setConnectedSheets(prev => [...prev, newSheet])
-        setNewSheetUrl('')
-        setIsConnectingSheet(false)
-      } catch (error) {
-        console.error('Failed to save connected sheet:', error)
-        setIsConnectingSheet(false)
-      }
     } catch (error) {
       console.error('Error connecting to Google Sheet:', error)
       setIsConnectingSheet(false)
-      // You could add a toast notification here
+    }
+  }
+
+  const loadUserSheets = async () => {
+    try {
+      const response = await fetch('/auth/google/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: 'user_123' })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // Convert Google Sheets to ConnectedSheet format
+          const sheets: ConnectedSheet[] = result.sheets.map((sheet: any) => ({
+            id: `googlesheets_${sheet.id}`,
+            name: sheet.name,
+            url: sheet.url,
+            lastSync: new Date().toISOString(),
+            columns: ['Company', 'Contact', 'Email', 'Phone', 'Industry', 'Status', 'Source', 'Date'],
+            rowCount: 0,
+            isConnected: true,
+            permissions: {
+              canRead: true,
+              canWrite: true,
+              canShare: false
+            }
+          }))
+          
+          setConnectedSheets(prev => [...prev, ...sheets])
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user sheets:', error)
     }
   }
 
@@ -823,40 +831,61 @@ export default function TargetAudienceIntelligence() {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
-            {/* Connect Google Sheet */}
+            {/* Google Sheets Integration */}
             <Card className="shadow-glow">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Link className="h-5 w-5" />
-                  Connect Google Sheets
+                  <Database className="h-5 w-5" />
+                  Google Sheets Integration
                 </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Connect your Google account to sync lead data directly to your sheets
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <label className="text-sm font-medium">Google Sheets URL</label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={newSheetUrl}
-                      onChange={(e) => setNewSheetUrl(e.target.value)}
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={connectGoogleSheet}
-                      disabled={!newSheetUrl.trim() || isConnectingSheet}
-                      className="shadow-glow"
-                    >
-                      {isConnectingSheet ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Link className="h-4 w-4 mr-2" />
-                      )}
-                      {isConnectingSheet ? 'Connecting...' : 'Connect'}
-                    </Button>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-teal-500/20 rounded-lg">
+                        <Database className="h-5 w-5 text-teal-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Google Sheets</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Connect your Google account to access and sync with your sheets
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={connectGoogleSheet}
+                        disabled={isConnectingSheet}
+                        className="shadow-glow"
+                      >
+                        {isConnectingSheet ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Link className="h-4 w-4 mr-2" />
+                        )}
+                        {isConnectingSheet ? 'Connecting...' : 'Connect Google Account'}
+                      </Button>
+                      <Button 
+                        onClick={loadUserSheets}
+                        variant="outline"
+                        className="border-white/20"
+                      >
+                        <Database className="h-4 w-4 mr-2" />
+                        Load My Sheets
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Paste your Google Sheets URL to connect and sync lead data
-                  </p>
+                  
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>• Secure OAuth authentication with Google</p>
+                    <p>• Access to all your Google Sheets</p>
+                    <p>• Automatic lead data synchronization</p>
+                    <p>• No technical setup required</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
