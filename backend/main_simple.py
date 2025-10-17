@@ -416,16 +416,12 @@ if os.path.exists("/app/frontend/dist"):
     app.mount("/assets", StaticFiles(directory="/app/frontend/dist/assets"), name="assets")
     app.mount("/static", StaticFiles(directory="/app/frontend/dist"), name="static")
 
+from fastapi.responses import RedirectResponse
+
 @app.get("/")
 async def root():
-    """Root endpoint: fast health JSON for Railway."""
-    return {
-        "status": "ok",
-        "message": "AI Lead Generation Platform API",
-        "version": "2.0.0",
-        "health": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    """Root endpoint: redirect to UI. Health remains at /health-check."""
+    return RedirectResponse(url="/app", status_code=307)
 
 @app.get("/app")
 async def serve_react_app_root():
