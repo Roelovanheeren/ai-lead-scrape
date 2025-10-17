@@ -94,9 +94,16 @@ class SimpleSearchTester:
                         total_results = search_info.get("totalResults", "0")
                         search_time = search_info.get("searchTime", 0)
                         
+                        # Convert total_results to int for formatting
+                        try:
+                            total_results_int = int(total_results)
+                            total_results_str = f"{total_results_int:,}"
+                        except (ValueError, TypeError):
+                            total_results_str = total_results
+                        
                         logger.info("")
                         logger.info("✅ SEARCH SUCCESSFUL!")
-                        logger.info(f"   Total results available: {total_results:,}")
+                        logger.info(f"   Total results available: {total_results_str}")
                         logger.info(f"   Search time: {search_time} seconds")
                         logger.info("")
                         

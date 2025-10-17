@@ -510,44 +510,77 @@ class RealResearchEngine:
             return {"analysis": "AI analysis failed"}
     
     async def find_company_contacts(self, company: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Find contacts and decision makers for a company"""
-        logger.info(f"Finding contacts for {company.get('name')}")
-        
-        # This would integrate with Apollo.io, Hunter.io, or LinkedIn APIs
-        # For now, generate realistic mock contacts based on company research
-        
-        contacts = []
+        """Find REAL contacts and decision makers for a company using Hunter.io"""
         company_name = company.get("name", "Unknown Company")
         domain = company.get("domain", "company.com")
         
-        # Generate realistic contacts based on company size and industry
-        decision_maker_roles = [
-            "CEO", "CTO", "VP of Engineering", "Head of Product", 
-            "VP of Sales", "Head of Marketing", "CFO", "COO"
-        ]
+        logger.info(f"🔍 Finding REAL contacts for {company_name} at {domain}")
         
-        for i, role in enumerate(decision_maker_roles[:3]):  # Limit to 3 contacts
-            contact = {
-                "id": f"contact_{company.get('name', '').lower().replace(' ', '_')}_{i+1}",
-                "company": company_name,
-                "contact_name": f"{role.split()[-1]} {company_name.split()[0]}",  # Generate realistic name
-                "email": f"{role.lower().replace(' ', '.')}@{domain}",
-                "phone": f"+1-555-{1000+i:04d}",
-                "linkedin": f"https://linkedin.com/in/{role.lower().replace(' ', '-')}-{company_name.lower().replace(' ', '-')}",
-                "website": company.get("website", ""),
-                "industry": company.get("industry", "Technology"),
-                "location": company.get("location", "United States"),
-                "role": role,
-                "seniority": "Senior" if "VP" in role or "Head" in role else "Executive",
-                "confidence": 0.85 + (i * 0.05),
-                "source": "AI Research",
-                "created_at": datetime.utcnow().isoformat(),
-                "research_data": company.get("research_data", {})
-            }
-            contacts.append(contact)
+        # Import Hunter.io client
+        try:
+            from services.hunter_client import hunter_client
+        except ImportError:
+            logger.error("❌ Hunter.io client not available")
+            return []
         
-        logger.info(f"Found {len(contacts)} contacts for {company_name}")
-        return contacts
+        # Use Hunter.io to find real contacts
+        try:
+            logger.info(f"📧 Searching Hunter.io for contacts at {domain}...")
+            hunter_results = await hunter_client.find_emails_at_domain(
+                domain=domain,
+                department="executive"  # Focus on decision makers
+            )
+            
+            if not hunter_results:
+                logger.warning(f"⚠️ No contacts found via Hunter.io for {domain}")
+                return []
+            
+            logger.info(f"✅ Found {len(hunter_results)} REAL contacts via Hunter.io")
+            
+            # Convert Hunter.io results to our contact format
+            contacts = []
+            for i, hunter_data in enumerate(hunter_results[:5], 1):  # Limit to 5 contacts
+                # Build full name
+                first_name = hunter_data.get("first_name", "")
+                last_name = hunter_data.get("last_name", "")
+                full_name = f"{first_name} {last_name}".strip() or "Unknown"
+                
+                contact = {
+                    "id": f"contact_{domain.replace('.', '_')}_{i}",
+                    "company": company_name,
+                    "contact_name": full_name,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "email": hunter_data.get("email", ""),
+                    "phone": hunter_data.get("phone_number", ""),
+                    "linkedin": hunter_data.get("linkedin", ""),
+                    "twitter": hunter_data.get("twitter", ""),
+                    "website": company.get("website", ""),
+                    "industry": company.get("industry", ""),
+                    "location": company.get("location", ""),
+                    "role": hunter_data.get("position", "Decision Maker"),
+                    "department": hunter_data.get("department", ""),
+                    "seniority": hunter_data.get("seniority", "Senior"),
+                    "confidence": hunter_data.get("confidence", 0.8),
+                    "verification_status": hunter_data.get("verification_status", ""),
+                    "source": "Hunter.io",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "research_data": company.get("research_data", {})
+                }
+                contacts.append(contact)
+                
+                logger.info(f"   [{i}] {full_name} - {contact['role']}")
+                logger.info(f"       Email: {contact['email']}")
+                logger.info(f"       Confidence: {contact['confidence']:.2f}")
+            
+            logger.info(f"✅ Returning {len(contacts)} REAL contacts for {company_name}")
+            return contacts
+            
+        except Exception as e:
+            logger.error(f"❌ Exception finding contacts: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return []
     
     async def generate_personalized_outreach(self, lead: Dict[str, Any]) -> Dict[str, Any]:
         """Generate personalized outreach messages for a lead"""
