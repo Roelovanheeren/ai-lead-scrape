@@ -1,0 +1,13 @@
+{
+  "name": "ai-lead-scrape",
+  "production_branch": "main",
+  "build": {
+    "command": "npm run build",
+    "destination": "frontend/dist",
+    "root_dir": "frontend"
+  },
+  "deployment": {
+    "environment": "production",
+    "compatibility_date": "2024-01-01"
+  }
+}

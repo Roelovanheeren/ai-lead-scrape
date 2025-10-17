@@ -105,55 +105,131 @@ class RealResearchEngine:
             return {"keywords": prompt.split()[:10], "industry": "Technology"}
     
     async def search_companies(self, criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-        """Search for companies using Google Custom Search API"""
-        logger.info(f"Searching companies with criteria: {criteria}")
+        """Search for companies using Google Custom Search API with rich targeting"""
+        logger.info(f"="*80)
+        logger.info(f"🔍 SEARCH_COMPANIES CALLED WITH RICH CRITERIA")
+        logger.info(f"Target count: {target_count}")
         logger.info(f"Google API key available: {bool(self.google_api_key)}")
         logger.info(f"Google CSE ID available: {bool(self.google_cse_id)}")
+        logger.info(f"AIOHTTP available: {AIOHTTP_AVAILABLE}")
         
         if not self.google_api_key or not self.google_cse_id:
-            logger.error("Google API credentials not configured")
-            logger.error(f"GOOGLE_API_KEY: {'SET' if self.google_api_key else 'NOT SET'}")
-            logger.error(f"GOOGLE_CSE_ID: {'SET' if self.google_cse_id else 'NOT SET'}")
+            logger.error(f"❌ Google API credentials not configured")
+            logger.error(f"GOOGLE_API_KEY: {'SET (len={})'.format(len(self.google_api_key)) if self.google_api_key else 'NOT SET'}")
+            logger.error(f"GOOGLE_CSE_ID: {'SET (len={})'.format(len(self.google_cse_id)) if self.google_cse_id else 'NOT SET'}")
+            logger.error(f"Please set these environment variables in Railway:")
+            logger.error(f"  - GOOGLE_API_KEY: Your Google API key")
+            logger.error(f"  - GOOGLE_CSE_ID (or GOOGLE_SEARCH_ENGINE_ID): Your Custom Search Engine ID")
+            logger.info(f"="*80)
             return []
         
         companies = []
+        
+        # Extract structured data from criteria
         keywords = criteria.get("keywords", [])
         industry = criteria.get("industry", "")
+        location = criteria.get("location", "")
+        company_size = criteria.get("company_size", "")
+        exclude_keywords = criteria.get("exclude_keywords", [])
+        original_prompt = criteria.get("prompt", "")  # NEW: Get original prompt
         
-        # Build search queries
+        logger.info(f"🎯 STRUCTURED SEARCH PARAMETERS:")
+        logger.info(f"  Industry: {industry}")
+        logger.info(f"  Location: {location}")
+        logger.info(f"  Company Size: {company_size}")
+        logger.info(f"  Keywords: {keywords}")
+        logger.info(f"  Exclude: {exclude_keywords}")
+        logger.info(f"  Original Prompt: {original_prompt[:100]}...")  # NEW: Log prompt
+        
+        # Build SMART search queries using ALL parameters
         search_queries = []
         
-        # Primary query with industry and keywords
+        # 1. Highly targeted queries combining all parameters
+        if industry and location and keywords:
+            # "Technology companies in San Francisco AI SaaS"
+            search_queries.append(f"{industry} companies in {location} {' '.join(keywords[:2])}")
+            # "San Francisco Technology startups AI machine learning"
+            search_queries.append(f"{location} {industry} startups {' '.join(keywords[:3])}")
+        
+        # 2. Industry + location specific
+        if industry and location:
+            search_queries.append(f"{industry} companies {location}")
+            search_queries.append(f"top {industry} businesses {location}")
+            search_queries.append(f"{industry} startups {location}")
+        
+        # 3. Keyword-focused with location
+        if keywords and location:
+            for keyword in keywords[:3]:
+                search_queries.append(f"{keyword} companies {location}")
+                search_queries.append(f"{keyword} startups {location}")
+        
+        # 4. Industry + keyword combinations
         if industry and keywords:
-            search_queries.append(f"{industry} companies {' '.join(keywords[:3])}")
+            for keyword in keywords[:3]:
+                search_queries.append(f"{industry} {keyword} companies")
         
-        # Company-focused queries
-        for keyword in keywords[:5]:
-            search_queries.append(f"{keyword} companies startups")
-            search_queries.append(f"{keyword} business solutions")
+        # 5. Company size specific searches
+        if company_size and industry and location:
+            size_term = "startups" if "Startup" in company_size else "companies"
+            search_queries.append(f"{company_size.split('(')[0].strip()} {industry} {size_term} {location}")
         
-        # Industry-specific queries
-        if industry:
-            search_queries.append(f"{industry} companies list")
-            search_queries.append(f"top {industry} companies")
+        # 6. Pure keyword searches (broader)
+        for keyword in keywords[:2]:
+            search_queries.append(f"{keyword} company directory")
+            search_queries.append(f"best {keyword} companies")
         
-        logger.info(f"Searching with queries: {search_queries}")
+        # NEW: If no queries generated from structured fields, use original prompt + keywords
+        if len(search_queries) == 0 and original_prompt:
+            logger.warning(f"⚠️ No queries from structured fields, falling back to PROMPT-BASED search")
+            # Use prompt directly
+            search_queries.append(original_prompt)
+            # Add keyword variations if available
+            if keywords:
+                for keyword in keywords[:5]:
+                    search_queries.append(f"{keyword} companies")
+                    search_queries.append(f"{keyword} startups")
+            else:
+                # Extract words from prompt as fallback
+                prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
+                for word in prompt_words:
+                    search_queries.append(f"{word} companies")
+        
+        logger.info(f"🔎 Generated {len(search_queries)} targeted search queries:")
+        for i, query in enumerate(search_queries[:5], 1):
+            logger.info(f"  {i}. \"{query}\"")
+        if len(search_queries) > 5:
+            logger.info(f"  ... and {len(search_queries) - 5} more queries")
         
         if not AIOHTTP_AVAILABLE:
-            logger.warning("aiohttp not available, returning empty company list")
+            logger.error(f"❌ aiohttp not available, cannot make HTTP requests")
+            logger.error(f"Install aiohttp: pip install aiohttp")
+            logger.info(f"="*80)
             return []
             
+        # Execute searches - do MORE searches for better coverage
+        max_queries = min(len(search_queries), 10)  # Use up to 10 queries (was 3!)
+        logger.info(f"📡 Will execute {max_queries} Google searches for comprehensive results")
+        
         async with aiohttp.ClientSession() as session:
-            for query in search_queries[:3]:  # Limit to 3 queries to avoid rate limits
+            for i, query in enumerate(search_queries[:max_queries], 1):
                 try:
+                    logger.info(f"🌐 Search {i}/{max_queries}: \"{query}\"")
                     companies_found = await self._search_google(session, query, target_count)
                     companies.extend(companies_found)
+                    logger.info(f"  ✅ Found {len(companies_found)} companies from this search")
+                    logger.info(f"  📊 Total so far: {len(companies)} companies")
                     
-                    if len(companies) >= target_count:
+                    # Small delay between searches to be respectful to Google API
+                    if i < max_queries:
+                        await asyncio.sleep(1)  # 1 second delay between searches
+                    
+                    # Keep searching until we have enough UNIQUE companies
+                    if len(set(c.get('domain', '') for c in companies)) >= target_count:
+                        logger.info(f"✅ Reached target count of unique companies")
                         break
                         
                 except Exception as e:
-                    logger.error(f"Error searching for '{query}': {e}")
+                    logger.error(f"❌ Error searching for '{query}': {e}")
                     continue
         
         # Remove duplicates and limit results
@@ -169,13 +245,17 @@ class RealResearchEngine:
                 if len(unique_companies) >= target_count:
                     break
         
-        logger.info(f"Found {len(unique_companies)} unique companies")
+        logger.info(f"✅ Found {len(unique_companies)} unique companies (target: {target_count})")
+        logger.info(f"Returning {min(len(unique_companies), target_count)} companies")
+        logger.info(f"="*80)
         return unique_companies[:target_count]
     
     async def _search_google(self, session, query: str, max_results: int) -> List[Dict[str, Any]]:
         """Search Google Custom Search API"""
+        logger.info(f"🌐 Making Google API request for query: '{query}'")
+        
         if not AIOHTTP_AVAILABLE:
-            logger.warning("aiohttp not available, skipping Google search")
+            logger.error(f"❌ aiohttp not available, skipping Google search")
             return []
             
         url = "https://www.googleapis.com/customsearch/v1"
@@ -187,12 +267,21 @@ class RealResearchEngine:
         }
         
         try:
+            logger.info(f"📡 Sending request to: {url}")
+            logger.info(f"Parameters: key=*****, cx={self.google_cse_id[:10]}..., q={query[:50]}...")
+            
             async with session.get(url, params=params) as response:
+                logger.info(f"Response status: {response.status}")
+                
                 if response.status != 200:
-                    logger.error(f"Google API error: {response.status}")
+                    error_text = await response.text()
+                    logger.error(f"❌ Google API error {response.status}: {error_text[:500]}")
                     return []
                 
                 data = await response.json()
+                items_count = len(data.get("items", []))
+                logger.info(f"✅ Received {items_count} search results from Google")
+                
                 companies = []
                 
                 for item in data.get("items", []):

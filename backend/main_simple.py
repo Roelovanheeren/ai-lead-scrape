@@ -34,28 +34,48 @@ try:
     )
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
+    logger.info("✅ Using REAL web scraping with Google Custom Search API")
 except ImportError as e:
     logger.warning(f"⚠️ Real research engine not available: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
+    REAL_RESEARCH_AVAILABLE = False
+    
+    # Define fallback functions ONLY if import failed
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
+
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
+
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
+
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
+
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+    
 except Exception as e:
     logger.error(f"❌ Error loading real research engine: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
+    REAL_RESEARCH_AVAILABLE = False
+    
+    # Define fallback functions ONLY if import failed
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
 
-# Fallback functions (always define these)
-async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
-    return {"keywords": prompt.split()[:10], "industry": "Technology"}
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
 
-async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-    return []
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
 
-async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
-    return company
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
 
-async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return []
-
-async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
-    return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
 
 # Import routes
 try:
@@ -75,12 +95,31 @@ except ImportError as e:
 # from routes.ai_chat_routes import router as ai_chat_router
 
 # In-memory job storage (use database in production)
+# WARNING: Jobs will be lost if container restarts!
 job_storage = {}
+container_start_time = datetime.utcnow().isoformat()
+logger.info(f"🚀 Container started at: {container_start_time}")
+logger.info(f"⚠️ Using in-memory job storage - jobs will be lost on restart!")
 
 async def process_job_background(job_id: str, job_data: dict):
     """Process a job in the background with REAL web scraping and research"""
     try:
-        logger.info(f"Starting REAL background processing for job {job_id}")
+        logger.info(f"="*80)
+        logger.info(f"🚀 BACKGROUND TASK STARTED for job {job_id}")
+        logger.info(f"🚀 This task is running in the background and will perform REAL web scraping")
+        logger.info(f"REAL_RESEARCH_AVAILABLE: {REAL_RESEARCH_AVAILABLE}")
+        logger.info(f"Job data keys: {list(job_data.keys())}")
+        logger.info(f"Prompt: {job_data.get('prompt', 'N/A')}")
+        logger.info(f"Target count: {job_data.get('target_count', 'N/A')}")
+        
+        # Verify job exists in storage
+        if job_id not in job_storage:
+            logger.error(f"❌ CRITICAL: Job {job_id} not in storage at background task start!")
+            logger.error(f"❌ Available jobs: {list(job_storage.keys())}")
+            return
+        
+        logger.info(f"✅ Job {job_id} verified in storage")
+        logger.info(f"="*80)
         
         # Update job status to processing
         job_storage[job_id] = {
@@ -93,13 +132,56 @@ async def process_job_background(job_id: str, job_data: dict):
             "target_count": job_data.get("target_count", 10)
         }
         
-        # Step 1: Extract targeting criteria from prompt
+        # Step 1: Read research guide from connected sheet (if available)
+        job_storage[job_id].update({
+            "progress": 5,
+            "message": "Reading research guide from your knowledge base..."
+        })
+        
+        research_guide = None
+        connected_sheet_id = job_data.get("connected_sheet_id")
+        
+        if connected_sheet_id:
+            logger.info(f"Job {job_id}: 📚 Reading research guide from sheet: {connected_sheet_id}")
+            try:
+                from services.google_sheets_service import google_sheets_service
+                sheet_data = await google_sheets_service.read_sheet_data(
+                    connected_sheet_id,
+                    range_name="A:Z"  # Read all data
+                )
+                if sheet_data.get("success"):
+                    research_guide = sheet_data.get("data", [])
+                    logger.info(f"✅ Loaded research guide with {len(research_guide)} rows")
+                    logger.info(f"📋 Guide preview: {research_guide[:3] if research_guide else 'empty'}")
+                else:
+                    logger.warning(f"⚠️ Could not read research guide: {sheet_data.get('error')}")
+            except Exception as e:
+                logger.warning(f"⚠️ Error reading research guide: {e}")
+        else:
+            logger.info(f"Job {job_id}: No connected sheet, using prompt-based research")
+        
+        # Step 2: Extract targeting criteria using AI from prompt + research guide
         job_storage[job_id].update({
             "progress": 10,
-            "message": "Analyzing prompt and extracting targeting criteria..."
+            "message": "Analyzing your prompt and research guide to plan searches..."
         })
-        targeting_criteria = await extract_targeting_criteria(job_data.get("prompt", ""))
-        logger.info(f"Job {job_id}: Extracted criteria: {targeting_criteria}")
+        
+        # Pass both prompt AND research guide to AI for analysis
+        prompt = job_data.get("prompt", "")
+        logger.info(f"Job {job_id}: 🎯 User prompt: {prompt}")
+        
+        if research_guide:
+            # Include research guide in the analysis
+            guide_text = "\n".join(["\t".join(row) for row in research_guide[:20]])  # First 20 rows
+            prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{guide_text}"
+            logger.info(f"Job {job_id}: 📖 Including research guide in analysis")
+        else:
+            prompt_with_guide = prompt
+        
+        targeting_criteria = await extract_targeting_criteria(prompt_with_guide)
+        # CRITICAL: Add original prompt to criteria for fallback search
+        targeting_criteria["prompt"] = prompt
+        logger.info(f"Job {job_id}: ✅ Extracted targeting criteria: {targeting_criteria}")
         
         # Step 2: Search for companies using Google Custom Search
         job_storage[job_id].update({
@@ -111,20 +193,35 @@ async def process_job_background(job_id: str, job_data: dict):
         logger.info(f"Job {job_id}: Targeting criteria: {targeting_criteria}")
         logger.info(f"Job {job_id}: Target count: {job_data.get('target_count', 10)}")
         
-        companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
-        logger.info(f"Job {job_id}: Found {len(companies)} companies")
+        logger.info(f"Job {job_id}: 🔍 Calling search_companies() function...")
+        try:
+            companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
+            logger.info(f"Job {job_id}: ✅ search_companies() returned {len(companies)} companies")
+        except Exception as search_error:
+            logger.error(f"Job {job_id}: ❌ search_companies() failed: {search_error}")
+            import traceback
+            logger.error(f"Job {job_id}: Traceback: {traceback.format_exc()}")
+            companies = []
         
         if not companies:
-            logger.warning(f"Job {job_id}: No companies found, falling back to simulation")
-            logger.warning(f"Job {job_id}: This means Google Custom Search API is not working")
+            logger.warning(f"="*80)
+            logger.warning(f"Job {job_id}: ⚠️ No companies found, falling back to simulation")
+            logger.warning(f"Job {job_id}: This means Google Custom Search API is not working properly")
             google_key = os.getenv("GOOGLE_API_KEY")
             google_cse = os.getenv("GOOGLE_CSE_ID") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
-            logger.warning(f"Job {job_id}: GOOGLE_API_KEY is {'SET' if google_key else 'NOT SET'}")
-            logger.warning(f"Job {job_id}: GOOGLE_CSE_ID/GOOGLE_SEARCH_ENGINE_ID is {'SET' if google_cse else 'NOT SET'}")
+            logger.warning(f"Job {job_id}: GOOGLE_API_KEY is {'SET (len={len(google_key)})' if google_key else 'NOT SET'}")
+            logger.warning(f"Job {job_id}: GOOGLE_CSE_ID/GOOGLE_SEARCH_ENGINE_ID is {'SET (len={len(google_cse)})' if google_cse else 'NOT SET'}")
             if not google_key:
-                logger.error(f"Job {job_id}: GOOGLE_API_KEY environment variable is missing!")
+                logger.error(f"Job {job_id}: ❌ GOOGLE_API_KEY environment variable is missing!")
             if not google_cse:
-                logger.error(f"Job {job_id}: GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID environment variable is missing!")
+                logger.error(f"Job {job_id}: ❌ GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID environment variable is missing!")
+            
+            # Check if real research module is loaded
+            logger.warning(f"Job {job_id}: REAL_RESEARCH_AVAILABLE flag: {REAL_RESEARCH_AVAILABLE}")
+            if not REAL_RESEARCH_AVAILABLE:
+                logger.error(f"Job {job_id}: ❌ Real research module failed to load!")
+                logger.error(f"Job {job_id}: Check if all dependencies are installed (aiohttp, openai, anthropic)")
+            logger.warning(f"="*80)
             # Fallback to simulation if no companies found
             await _fallback_simulation(job_id, job_data)
             return
@@ -215,7 +312,24 @@ async def process_job_background(job_id: str, job_data: dict):
         # Filter out existing leads if requested
         final_leads = personalized_leads
         if job_data.get("exclude_existing_leads", False) and job_data.get("existing_leads"):
-            existing_emails = {lead.get('email', '').lower() for lead in job_data.get("existing_leads", [])}
+            # Handle both list and dict formats for existing_leads
+            existing_leads_data = job_data.get("existing_leads", [])
+            existing_emails = set()
+            
+            for item in existing_leads_data:
+                if isinstance(item, dict):
+                    # If it's a dict, use .get()
+                    email = item.get('email', '')
+                    if email:
+                        existing_emails.add(email.lower())
+                elif isinstance(item, list) and len(item) > 0:
+                    # If it's a list (raw sheet row), try to find email-like values
+                    for value in item:
+                        if isinstance(value, str) and '@' in value and '.' in value:
+                            existing_emails.add(value.lower())
+                            break
+            
+            logger.info(f"Job {job_id}: Found {len(existing_emails)} existing emails to exclude")
             final_leads = [lead for lead in personalized_leads if lead.get('email', '').lower() not in existing_emails]
             logger.info(f"Job {job_id}: Filtered out existing leads, {len(final_leads)} remaining")
         
@@ -238,14 +352,31 @@ async def process_job_background(job_id: str, job_data: dict):
                 logger.error(f"Failed to export to Google Sheets: {e}")
         
     except Exception as e:
-        logger.error(f"Error processing job {job_id}: {str(e)}")
-        job_storage[job_id] = {
-            "id": job_id,
-            "status": "failed",
-            "message": f"Job failed: {str(e)}",
-            "error": str(e),
-            "created_at": datetime.utcnow().isoformat()
-        }
+        logger.error(f"="*80)
+        logger.error(f"❌ CRITICAL ERROR in background job processing for {job_id}")
+        logger.error(f"❌ Error: {str(e)}")
+        import traceback
+        logger.error(f"❌ Full traceback:")
+        logger.error(traceback.format_exc())
+        logger.error(f"="*80)
+        
+        # Update job storage with failure
+        if job_id in job_storage:
+            job_storage[job_id].update({
+                "status": "failed",
+                "message": f"Job failed: {str(e)}",
+                "error": str(e),
+                "failed_at": datetime.utcnow().isoformat()
+            })
+        else:
+            logger.error(f"❌ Cannot update job {job_id} - not in storage!")
+            job_storage[job_id] = {
+                "id": job_id,
+                "status": "failed",
+                "message": f"Job failed: {str(e)}",
+                "error": str(e),
+                "created_at": datetime.utcnow().isoformat()
+            }
 
 async def _fallback_simulation(job_id: str, job_data: dict):
     """Fallback to simulation if real research fails"""
@@ -278,20 +409,31 @@ async def _fallback_simulation(job_id: str, job_data: dict):
     existing_leads = job_data.get("existing_leads", [])
     exclude_existing = job_data.get("exclude_existing_leads", False)
     
+    # Parse existing leads to get emails (handle both dict and list formats)
+    existing_emails = set()
+    if exclude_existing and existing_leads:
+        for item in existing_leads:
+            if isinstance(item, dict):
+                email = item.get('email', '')
+                if email:
+                    existing_emails.add(email.lower())
+            elif isinstance(item, list) and len(item) > 0:
+                # If it's a list, try to find email-like values
+                for value in item:
+                    if isinstance(value, str) and '@' in value and '.' in value:
+                        existing_emails.add(value.lower())
+                        break
+    
+    logger.info(f"Job {job_id}: Excluding {len(existing_emails)} existing emails from simulation")
+    
     simulated_leads = []
     for i in range(min(target_count, 50)):
-        if exclude_existing and existing_leads:
-            company_name = f"Company {i+1}"
-            email = f"contact{i+1}@company{i+1}.com"
-            
-            is_duplicate = any(
-                existing.get('company', '').lower() == company_name.lower() or 
-                existing.get('email', '').lower() == email.lower()
-                for existing in existing_leads
-            )
-            
-            if is_duplicate:
-                continue
+        company_name = f"Company {i+1}"
+        email = f"contact{i+1}@company{i+1}.com"
+        
+        # Check if email already exists
+        if email.lower() in existing_emails:
+            continue
         
         lead = {
             "id": f"lead_{i+1}",
@@ -366,42 +508,30 @@ if os.path.exists("/app/frontend/dist"):
     app.mount("/assets", StaticFiles(directory="/app/frontend/dist/assets"), name="assets")
     app.mount("/static", StaticFiles(directory="/app/frontend/dist"), name="static")
 
+from fastapi.responses import RedirectResponse
+
 @app.get("/")
-async def root():
-    """Root endpoint - serve React app or API info"""
-    logger.info("🔍 Root endpoint called!")
+async def serve_react_app_root():
+    """Serve the React app at root (no redirect needed)"""
     try:
-        # Try to serve the React app first
         if os.path.exists("/app/frontend/dist/index.html"):
-            logger.info("✅ Serving React app from /app/frontend/dist/index.html")
             return FileResponse("/app/frontend/dist/index.html")
         else:
-            logger.warning("⚠️ React app not found, returning API info")
-            # Fallback to API info if React app not available
-            response = {
+            # Fallback: return API info if frontend not built
+            return {
                 "status": "ok",
-                "message": "AI Lead Generation Platform API", 
+                "message": "AI Lead Generation Platform API",
                 "version": "2.0.0",
                 "health": "healthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "note": "React app not found, serving API info"
+                "timestamp": datetime.utcnow().isoformat()
             }
-            logger.info(f"✅ Root endpoint returning: {response}")
-            return response
     except Exception as e:
-        logger.error(f"❌ Root endpoint error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {
-            "status": "error",
-            "message": "API Error", 
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        logger.error(f"React app error: {e}")
+        return {"error": str(e)}
 
 @app.get("/app")
-async def serve_react_app():
-    """Serve the React app"""
+async def serve_react_app_alt():
+    """Serve the React app at /app as well for backward compatibility"""
     try:
         if os.path.exists("/app/frontend/dist/index.html"):
             return FileResponse("/app/frontend/dist/index.html")
@@ -414,41 +544,18 @@ async def serve_react_app():
 @app.get("/ping")
 async def ping():
     """Simple ping endpoint for health checks"""
-    logger.info("🔍 Ping endpoint called!")
-    try:
-        response = {"status": "ok", "message": "pong", "timestamp": datetime.utcnow().isoformat()}
-        logger.info(f"✅ Ping endpoint returning: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"❌ Ping error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {"status": "error", "message": str(e)}
+    return {"status": "ok", "message": "pong"}
+
+@app.get("/healthz")
+async def healthz():
+    """Ultra-simple health endpoint that returns plain text"""
+    return "OK"
 
 @app.get("/health-check")
 async def health_check_simple():
     """Simple health check endpoint for Railway"""
-    logger.info("🔍 Health check endpoint called!")
-    try:
-        response = {
-            "status": "ok",
-            "message": "AI Lead Generation Platform API", 
-            "version": "2.0.0",
-            "health": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        logger.info(f"✅ Health check returning: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"❌ Health check error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {
-            "status": "error",
-            "message": "Health check failed", 
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+    # Ultra-simple response for Railway health check
+    return {"status": "ok", "health": "healthy"}
 
 @app.get("/api")
 async def api_info():
@@ -491,6 +598,28 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+@app.get("/debug/google-search")
+async def debug_google_search(q: str, n: int = 5):
+    """Debug endpoint to verify Google Custom Search live from the backend."""
+    try:
+        logger.info(f"🔍 Debug Google Search: q='{q}', n={n}")
+        criteria = {"keywords": q.split(), "industry": ""}
+        # Call the same search used by jobs
+        results = await search_companies(criteria, n)
+        logger.info(f"🔍 Debug Google Search returned {len(results)} results")
+        return {
+            "success": True,
+            "count": len(results),
+            "keys": {
+                "google_api_key": "SET" if os.getenv("GOOGLE_API_KEY") else "NOT SET",
+                "google_cse_id": "SET" if os.getenv("GOOGLE_CSE_ID") else "NOT SET",
+            },
+            "sample": results[: min(3, len(results))]
+        }
+    except Exception as e:
+        logger.error(f"❌ Debug Google Search error: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.post("/jobs/")
 async def create_job(job_data: dict):
@@ -537,6 +666,7 @@ async def get_job(job_id: str):
     """Get job status"""
     try:
         logger.info(f"🔍 Getting job status for job_id: {job_id}")
+        logger.info(f"🔍 Container start time: {container_start_time}")
         logger.info(f"🔍 Available jobs in storage: {list(job_storage.keys())}")
         logger.info(f"🔍 Total jobs in storage: {len(job_storage)}")
         
@@ -548,10 +678,13 @@ async def get_job(job_id: str):
         else:
             logger.warning(f"❌ Job {job_id} not found in storage")
             logger.warning(f"❌ Available job IDs: {list(job_storage.keys())}")
+            logger.warning(f"❌ This may be due to container restart after job creation")
             return {
                 "id": job_id,
                 "status": "not_found",
-                "message": "Job not found"
+                "message": "Job not found. The container may have restarted after job creation.",
+                "container_start_time": container_start_time,
+                "note": "Jobs are stored in memory and lost on restart. Consider using persistent storage."
             }
     except Exception as e:
         logger.error(f"❌ Error getting job {job_id}: {str(e)}")
@@ -573,6 +706,19 @@ async def list_jobs():
         "message": f"Found {len(jobs)} jobs"
     }
 
+@app.get("/debug/container-info")
+async def container_info():
+    """Debug endpoint showing container state"""
+    return {
+        "container_start_time": container_start_time,
+        "current_time": datetime.utcnow().isoformat(),
+        "uptime_seconds": (datetime.utcnow() - datetime.fromisoformat(container_start_time)).total_seconds(),
+        "jobs_in_memory": len(job_storage),
+        "job_ids": list(job_storage.keys()),
+        "real_research_available": REAL_RESEARCH_AVAILABLE,
+        "warning": "Jobs stored in memory will be lost on container restart"
+    }
+
 @app.get("/test")
 async def test_endpoint():
     """Test endpoint to verify the API is working"""
@@ -585,14 +731,28 @@ async def test_endpoint():
         "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
     }
 
-# Catch-all route for React Router (MUST BE LAST)
-@app.get("/{path:path}")
-async def serve_react_app(path: str):
-    """Serve React app for all non-API routes"""
-    if not path.startswith("api") and os.path.exists("/app/frontend/dist/index.html"):
-        return FileResponse("/app/frontend/dist/index.html")
-    else:
-        return {"detail": "Not Found"}
+# Catch-all route for React Router (must be LAST)
+# This handles all client-side routes: /dashboard, /leads, /research, etc.
+@app.get("/{full_path:path}")
+async def catch_all_react_routes(full_path: str):
+    """
+    Catch-all for React Router paths.
+    Returns index.html for any route that doesn't match API endpoints.
+    Must be defined LAST to avoid intercepting /api/*, /health*, /ping, etc.
+    """
+    # Don't intercept API routes (already handled above)
+    if full_path.startswith(("api/", "health", "ping", "debug/", "jobs/", "test")):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # Serve React app for all other routes
+    try:
+        if os.path.exists("/app/frontend/dist/index.html"):
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not found")
+    except Exception as e:
+        logger.error(f"Error serving React app: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     logger.info("🚀 Starting AI Lead Generation Platform")

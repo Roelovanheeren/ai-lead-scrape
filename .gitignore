@@ -74,3 +74,5 @@ temp/
 
 # Railway
 .railway/
+# Git worktrees (used for vertical branches)
+WorkTree/

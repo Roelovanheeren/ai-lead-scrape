@@ -1,0 +1,11 @@
+# OAuth routes (must be first for proper handling)
+/api/auth/google/*  https://ai-lead-scrape-production.up.railway.app/auth/google/:splat  200!
+
+# API proxy to Railway backend
+/api/*  https://ai-lead-scrape-production.up.railway.app/:splat  200!
+
+# Health check
+/health  https://ai-lead-scrape-production.up.railway.app/health  200
+
+# SPA fallback (must be last)
+/*  /index.html  200
