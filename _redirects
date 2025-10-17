@@ -1,0 +1,5 @@
+# API proxy to Railway backend
+/api/*  https://ai-lead-scrape-production.up.railway.app/api/:splat  200
+
+# SPA fallback
+/*  /index.html  200
