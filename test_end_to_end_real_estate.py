@@ -156,10 +156,10 @@ async def main():
             if contacts:
                 logger.info(f"   ✅ Found {len(contacts)} contacts")
                 for contact in contacts[:3]:  # Show first 3
-                    logger.info(f"      • {contact.get('name')} - {contact.get('position')}")
+                    logger.info(f"      • {contact.get('contact_name')} - {contact.get('role')}")
                     logger.info(f"        Email: {contact.get('email')}")
                     logger.info(f"        LinkedIn: {contact.get('linkedin')}")
-                    logger.info(f"        Confidence: {contact.get('confidence')}%")
+                    logger.info(f"        Confidence: {contact.get('confidence')*100:.0f}%")
                 all_leads.extend(contacts)
             else:
                 logger.warning(f"   ⚠️ No contacts found at {company['name']}")
@@ -182,8 +182,8 @@ async def main():
     matched_roles = 0
     
     for lead in all_leads:
-        position = (lead.get('position', '') or '').lower()
-        if any(role.lower() in position for role in target_roles):
+        role = (lead.get('role', '') or '').lower()
+        if any(target_role.lower() in role for target_role in target_roles):
             matched_roles += 1
     
     logger.info(f"🎯 Role Matching:")

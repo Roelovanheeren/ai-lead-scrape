@@ -612,28 +612,46 @@ class RealResearchEngine:
                 logger.info(f"🔍 Filtering contacts by target roles: {target_roles}")
                 filtered_results = []
                 
-                # Extract key role keywords for more flexible matching
-                # E.g., "VP of Development" → ["vp", "vice president", "development", "developer"]
-                role_keywords = set()
+                # Extract SENIORITY and FUNCTION separately for smarter matching
+                # E.g., "VP of Development" → seniority: ["vp", "vice president"], function: ["development"]
+                seniority_keywords = set()
+                function_keywords = set()
+                
                 for role in target_roles:
                     role_lower = role.lower()
-                    role_keywords.add(role_lower)
                     
-                    # Extract individual important words (nouns, not filler words)
-                    words = [w.strip() for w in role_lower.split() if len(w.strip()) > 2]
-                    role_keywords.update(words)
-                    
-                    # Add common abbreviations and synonyms
-                    if "vice president" in role_lower or "vp" in role_lower:
-                        role_keywords.update(["vp", "vice president", "svp", "senior vice president"])
+                    # Extract seniority level keywords
+                    if "vp" in role_lower or "vice president" in role_lower:
+                        seniority_keywords.update(["vp", "vice president", "v.p.", "v.p"])
+                    if "svp" in role_lower or "senior vice president" in role_lower:
+                        seniority_keywords.update(["svp", "senior vice president", "sr. vice president", "sr vp"])
                     if "director" in role_lower:
-                        role_keywords.update(["director", "managing director"])
-                    if "development" in role_lower or "developer" in role_lower:
-                        role_keywords.update(["development", "developer", "developing"])
+                        seniority_keywords.update(["director", "dir.", "dir"])
+                    if "head" in role_lower:
+                        seniority_keywords.add("head")
+                    if "chief" in role_lower:
+                        seniority_keywords.add("chief")
                     if "manager" in role_lower:
-                        role_keywords.update(["manager", "management"])
+                        seniority_keywords.update(["manager", "mgr"])
+                    
+                    # Extract function/department keywords (the IMPORTANT ones)
+                    if "development" in role_lower or "developer" in role_lower:
+                        function_keywords.update(["development", "developer", "developing"])
                     if "project" in role_lower:
-                        role_keywords.update(["project", "projects"])
+                        function_keywords.update(["project", "projects"])
+                    if "construction" in role_lower:
+                        function_keywords.update(["construction", "construction mgmt"])
+                    if "acquisitions" in role_lower or "acquisition" in role_lower:
+                        function_keywords.update(["acquisitions", "acquisition"])
+                    if "investment" in role_lower:
+                        function_keywords.update(["investment", "investments"])
+                    if "operations" in role_lower:
+                        function_keywords.update(["operations", "ops"])
+                    if "portfolio" in role_lower:
+                        function_keywords.add("portfolio")
+                
+                logger.info(f"   🎯 Seniority keywords: {seniority_keywords}")
+                logger.info(f"   🎯 Function keywords: {function_keywords}")
                 
                 for contact in hunter_results:
                     position = (contact.get("position", "") or "").lower()
@@ -644,16 +662,26 @@ class RealResearchEngine:
                         logger.info(f"   ✅ Matched (exact): {contact.get('position')}")
                         continue
                     
-                    # Keyword match check (flexible matching)
-                    position_words = set(position.replace("-", " ").split())
-                    matching_keywords = role_keywords & position_words
+                    # Smart keyword matching: require BOTH seniority AND function match
+                    # This prevents "VP of Construction" from matching "VP of Development"
+                    position_clean = position.replace("-", " ").replace(".", " ")
                     
-                    # If at least 1 significant keyword matches, include the contact
-                    if matching_keywords:
+                    # Check if position contains seniority keywords
+                    has_seniority = any(s in position_clean for s in seniority_keywords)
+                    
+                    # Check if position contains function keywords
+                    has_function = any(f in position_clean for f in function_keywords)
+                    
+                    # RULE: Accept if BOTH seniority AND function match
+                    # OR if we have no specific function keywords (match any senior role)
+                    if has_seniority and (has_function or not function_keywords):
+                        matched_seniority = [s for s in seniority_keywords if s in position_clean]
+                        matched_function = [f for f in function_keywords if f in position_clean]
                         filtered_results.append(contact)
-                        logger.info(f"   ✅ Matched (keywords: {matching_keywords}): {contact.get('position')}")
+                        logger.info(f"   ✅ Matched: {contact.get('position')}")
+                        logger.info(f"      Seniority: {matched_seniority}, Function: {matched_function or 'any'}")
                     else:
-                        logger.info(f"   ❌ Skipped: {contact.get('position')}")
+                        logger.info(f"   ❌ Skipped: {contact.get('position')} (seniority: {has_seniority}, function: {has_function})")
                 
                 logger.info(f"✅ Filtered to {len(filtered_results)} contacts matching target roles")
                 
