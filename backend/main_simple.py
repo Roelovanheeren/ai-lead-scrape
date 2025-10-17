@@ -456,6 +456,11 @@ async def ping():
     """Simple ping endpoint for health checks"""
     return {"status": "ok", "message": "pong"}
 
+@app.get("/healthz")
+async def healthz():
+    """Ultra-simple health endpoint that returns plain text"""
+    return "OK"
+
 @app.get("/health-check")
 async def health_check_simple():
     """Simple health check endpoint for Railway"""
