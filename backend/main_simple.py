@@ -418,40 +418,30 @@ if os.path.exists("/app/frontend/dist"):
 
 @app.get("/")
 async def root():
-    """Root endpoint - serve React app or API info"""
-    logger.info("🔍 Root endpoint called!")
-    try:
-        # Try to serve the React app first
-        if os.path.exists("/app/frontend/dist/index.html"):
-            logger.info("✅ Serving React app from /app/frontend/dist/index.html")
-            return FileResponse("/app/frontend/dist/index.html")
-        else:
-            logger.warning("⚠️ React app not found, returning API info")
-            # Fallback to API info if React app not available
-            response = {
-                "status": "ok",
-                "message": "AI Lead Generation Platform API", 
-                "version": "2.0.0",
-                "health": "healthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "note": "React app not found, serving API info"
-            }
-            logger.info(f"✅ Root endpoint returning: {response}")
-            return response
-    except Exception as e:
-        logger.error(f"❌ Root endpoint error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {
-            "status": "error",
-            "message": "API Error", 
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+    """Root endpoint: fast health JSON for Railway."""
+    return {
+        "status": "ok",
+        "message": "AI Lead Generation Platform API",
+        "version": "2.0.0",
+        "health": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 @app.get("/app")
-async def serve_react_app():
+async def serve_react_app_root():
     """Serve the React app"""
+    try:
+        if os.path.exists("/app/frontend/dist/index.html"):
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            return {"error": "Frontend not found"}
+    except Exception as e:
+        logger.error(f"React app error: {e}")
+        return {"error": str(e)}
+
+@app.get("/app/{path:path}")
+async def serve_react_app_paths(path: str):
+    """Serve React app for any /app/* client routes"""
     try:
         if os.path.exists("/app/frontend/dist/index.html"):
             return FileResponse("/app/frontend/dist/index.html")
@@ -629,14 +619,7 @@ async def test_endpoint():
         "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
     }
 
-# Catch-all route for React Router (MUST BE LAST)
-@app.get("/{path:path}")
-async def serve_react_app(path: str):
-    """Serve React app for all non-API routes"""
-    if not path.startswith("api") and os.path.exists("/app/frontend/dist/index.html"):
-        return FileResponse("/app/frontend/dist/index.html")
-    else:
-        return {"detail": "Not Found"}
+# Remove global catch-all to avoid intercepting health checks and API
 
 if __name__ == "__main__":
     logger.info("🚀 Starting AI Lead Generation Platform")
