@@ -419,25 +419,27 @@ if os.path.exists("/app/frontend/dist"):
 from fastapi.responses import RedirectResponse
 
 @app.get("/")
-async def root():
-    """Root endpoint: redirect to UI. Health remains at /health-check."""
-    return RedirectResponse(url="/app", status_code=307)
-
-@app.get("/app")
 async def serve_react_app_root():
-    """Serve the React app"""
+    """Serve the React app at root (no redirect needed)"""
     try:
         if os.path.exists("/app/frontend/dist/index.html"):
             return FileResponse("/app/frontend/dist/index.html")
         else:
-            return {"error": "Frontend not found"}
+            # Fallback: return API info if frontend not built
+            return {
+                "status": "ok",
+                "message": "AI Lead Generation Platform API",
+                "version": "2.0.0",
+                "health": "healthy",
+                "timestamp": datetime.utcnow().isoformat()
+            }
     except Exception as e:
         logger.error(f"React app error: {e}")
         return {"error": str(e)}
 
-@app.get("/app/{path:path}")
-async def serve_react_app_paths(path: str):
-    """Serve React app for any /app/* client routes"""
+@app.get("/app")
+async def serve_react_app_alt():
+    """Serve the React app at /app as well for backward compatibility"""
     try:
         if os.path.exists("/app/frontend/dist/index.html"):
             return FileResponse("/app/frontend/dist/index.html")
@@ -620,7 +622,28 @@ async def test_endpoint():
         "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
     }
 
-# Remove global catch-all to avoid intercepting health checks and API
+# Catch-all route for React Router (must be LAST)
+# This handles all client-side routes: /dashboard, /leads, /research, etc.
+@app.get("/{full_path:path}")
+async def catch_all_react_routes(full_path: str):
+    """
+    Catch-all for React Router paths.
+    Returns index.html for any route that doesn't match API endpoints.
+    Must be defined LAST to avoid intercepting /api/*, /health*, /ping, etc.
+    """
+    # Don't intercept API routes (already handled above)
+    if full_path.startswith(("api/", "health", "ping", "debug/", "jobs/", "test")):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # Serve React app for all other routes
+    try:
+        if os.path.exists("/app/frontend/dist/index.html"):
+            return FileResponse("/app/frontend/dist/index.html")
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not found")
+    except Exception as e:
+        logger.error(f"Error serving React app: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     logger.info("🚀 Starting AI Lead Generation Platform")
