@@ -132,30 +132,56 @@ async def process_job_background(job_id: str, job_data: dict):
             "target_count": job_data.get("target_count", 10)
         }
         
-        # Step 1: Build targeting criteria from structured job data
+        # Step 1: Read research guide from connected sheet (if available)
         job_storage[job_id].update({
-            "progress": 10,
-            "message": "Building search criteria from your parameters..."
+            "progress": 5,
+            "message": "Reading research guide from your knowledge base..."
         })
         
-        # Use structured data from frontend instead of just parsing prompt
-        targeting_criteria = {
-            "industry": job_data.get("industry", ""),
-            "location": job_data.get("location", ""),
-            "company_size": job_data.get("company_size", ""),
-            "keywords": job_data.get("keywords", []),
-            "exclude_keywords": job_data.get("exclude_keywords", []),
-            "data_sources": job_data.get("data_sources", {}),
-            "prompt": job_data.get("prompt", "")
-        }
+        research_guide = None
+        connected_sheet_id = job_data.get("connected_sheet_id")
         
-        logger.info(f"Job {job_id}: 🎯 Using structured targeting criteria:")
-        logger.info(f"  Industry: {targeting_criteria.get('industry')}")
-        logger.info(f"  Location: {targeting_criteria.get('location')}")
-        logger.info(f"  Company Size: {targeting_criteria.get('company_size')}")
-        logger.info(f"  Keywords: {targeting_criteria.get('keywords')}")
-        logger.info(f"  Exclude: {targeting_criteria.get('exclude_keywords')}")
-        logger.info(f"  Data Sources: {targeting_criteria.get('data_sources')}")
+        if connected_sheet_id:
+            logger.info(f"Job {job_id}: 📚 Reading research guide from sheet: {connected_sheet_id}")
+            try:
+                from services.google_sheets_service import google_sheets_service
+                sheet_data = await google_sheets_service.read_sheet_data(
+                    connected_sheet_id,
+                    range_name="A:Z"  # Read all data
+                )
+                if sheet_data.get("success"):
+                    research_guide = sheet_data.get("data", [])
+                    logger.info(f"✅ Loaded research guide with {len(research_guide)} rows")
+                    logger.info(f"📋 Guide preview: {research_guide[:3] if research_guide else 'empty'}")
+                else:
+                    logger.warning(f"⚠️ Could not read research guide: {sheet_data.get('error')}")
+            except Exception as e:
+                logger.warning(f"⚠️ Error reading research guide: {e}")
+        else:
+            logger.info(f"Job {job_id}: No connected sheet, using prompt-based research")
+        
+        # Step 2: Extract targeting criteria using AI from prompt + research guide
+        job_storage[job_id].update({
+            "progress": 10,
+            "message": "Analyzing your prompt and research guide to plan searches..."
+        })
+        
+        # Pass both prompt AND research guide to AI for analysis
+        prompt = job_data.get("prompt", "")
+        logger.info(f"Job {job_id}: 🎯 User prompt: {prompt}")
+        
+        if research_guide:
+            # Include research guide in the analysis
+            guide_text = "\n".join(["\t".join(row) for row in research_guide[:20]])  # First 20 rows
+            prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{guide_text}"
+            logger.info(f"Job {job_id}: 📖 Including research guide in analysis")
+        else:
+            prompt_with_guide = prompt
+        
+        targeting_criteria = await extract_targeting_criteria(prompt_with_guide)
+        # CRITICAL: Add original prompt to criteria for fallback search
+        targeting_criteria["prompt"] = prompt
+        logger.info(f"Job {job_id}: ✅ Extracted targeting criteria: {targeting_criteria}")
         
         # Step 2: Search for companies using Google Custom Search
         job_storage[job_id].update({

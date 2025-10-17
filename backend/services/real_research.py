@@ -131,6 +131,7 @@ class RealResearchEngine:
         location = criteria.get("location", "")
         company_size = criteria.get("company_size", "")
         exclude_keywords = criteria.get("exclude_keywords", [])
+        original_prompt = criteria.get("prompt", "")  # NEW: Get original prompt
         
         logger.info(f"🎯 STRUCTURED SEARCH PARAMETERS:")
         logger.info(f"  Industry: {industry}")
@@ -138,6 +139,7 @@ class RealResearchEngine:
         logger.info(f"  Company Size: {company_size}")
         logger.info(f"  Keywords: {keywords}")
         logger.info(f"  Exclude: {exclude_keywords}")
+        logger.info(f"  Original Prompt: {original_prompt[:100]}...")  # NEW: Log prompt
         
         # Build SMART search queries using ALL parameters
         search_queries = []
@@ -175,6 +177,22 @@ class RealResearchEngine:
         for keyword in keywords[:2]:
             search_queries.append(f"{keyword} company directory")
             search_queries.append(f"best {keyword} companies")
+        
+        # NEW: If no queries generated from structured fields, use original prompt + keywords
+        if len(search_queries) == 0 and original_prompt:
+            logger.warning(f"⚠️ No queries from structured fields, falling back to PROMPT-BASED search")
+            # Use prompt directly
+            search_queries.append(original_prompt)
+            # Add keyword variations if available
+            if keywords:
+                for keyword in keywords[:5]:
+                    search_queries.append(f"{keyword} companies")
+                    search_queries.append(f"{keyword} startups")
+            else:
+                # Extract words from prompt as fallback
+                prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
+                for word in prompt_words:
+                    search_queries.append(f"{word} companies")
         
         logger.info(f"🔎 Generated {len(search_queries)} targeted search queries:")
         for i, query in enumerate(search_queries[:5], 1):
