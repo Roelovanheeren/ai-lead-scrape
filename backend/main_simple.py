@@ -34,28 +34,48 @@ try:
     )
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
+    logger.info("✅ Using REAL web scraping with Google Custom Search API")
 except ImportError as e:
     logger.warning(f"⚠️ Real research engine not available: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
+    REAL_RESEARCH_AVAILABLE = False
+    
+    # Define fallback functions ONLY if import failed
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
+
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
+
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
+
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
+
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+    
 except Exception as e:
     logger.error(f"❌ Error loading real research engine: {e}")
     logger.warning("⚠️ Using fallback simulation mode")
+    REAL_RESEARCH_AVAILABLE = False
+    
+    # Define fallback functions ONLY if import failed
+    async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
+        return {"keywords": prompt.split()[:10], "industry": "Technology"}
 
-# Fallback functions (always define these)
-async def extract_targeting_criteria(prompt: str) -> Dict[str, Any]:
-    return {"keywords": prompt.split()[:10], "industry": "Technology"}
+    async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
+        return []
 
-async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-    return []
+    async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
+        return company
 
-async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
-    return company
+    async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return []
 
-async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return []
-
-async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
-    return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
+    async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
+        return {"linkedin_message": "Hi! Let's connect.", "email_subject": "Partnership", "email_body": "Hi there!"}
 
 # Import routes
 try:
