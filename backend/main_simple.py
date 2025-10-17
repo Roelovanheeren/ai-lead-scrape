@@ -132,13 +132,30 @@ async def process_job_background(job_id: str, job_data: dict):
             "target_count": job_data.get("target_count", 10)
         }
         
-        # Step 1: Extract targeting criteria from prompt
+        # Step 1: Build targeting criteria from structured job data
         job_storage[job_id].update({
             "progress": 10,
-            "message": "Analyzing prompt and extracting targeting criteria..."
+            "message": "Building search criteria from your parameters..."
         })
-        targeting_criteria = await extract_targeting_criteria(job_data.get("prompt", ""))
-        logger.info(f"Job {job_id}: Extracted criteria: {targeting_criteria}")
+        
+        # Use structured data from frontend instead of just parsing prompt
+        targeting_criteria = {
+            "industry": job_data.get("industry", ""),
+            "location": job_data.get("location", ""),
+            "company_size": job_data.get("company_size", ""),
+            "keywords": job_data.get("keywords", []),
+            "exclude_keywords": job_data.get("exclude_keywords", []),
+            "data_sources": job_data.get("data_sources", {}),
+            "prompt": job_data.get("prompt", "")
+        }
+        
+        logger.info(f"Job {job_id}: 🎯 Using structured targeting criteria:")
+        logger.info(f"  Industry: {targeting_criteria.get('industry')}")
+        logger.info(f"  Location: {targeting_criteria.get('location')}")
+        logger.info(f"  Company Size: {targeting_criteria.get('company_size')}")
+        logger.info(f"  Keywords: {targeting_criteria.get('keywords')}")
+        logger.info(f"  Exclude: {targeting_criteria.get('exclude_keywords')}")
+        logger.info(f"  Data Sources: {targeting_criteria.get('data_sources')}")
         
         # Step 2: Search for companies using Google Custom Search
         job_storage[job_id].update({

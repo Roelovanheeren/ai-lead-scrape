@@ -105,10 +105,9 @@ class RealResearchEngine:
             return {"keywords": prompt.split()[:10], "industry": "Technology"}
     
     async def search_companies(self, criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
-        """Search for companies using Google Custom Search API"""
+        """Search for companies using Google Custom Search API with rich targeting"""
         logger.info(f"="*80)
-        logger.info(f"🔍 SEARCH_COMPANIES CALLED")
-        logger.info(f"Criteria: {criteria}")
+        logger.info(f"🔍 SEARCH_COMPANIES CALLED WITH RICH CRITERIA")
         logger.info(f"Target count: {target_count}")
         logger.info(f"Google API key available: {bool(self.google_api_key)}")
         logger.info(f"Google CSE ID available: {bool(self.google_cse_id)}")
@@ -125,27 +124,63 @@ class RealResearchEngine:
             return []
         
         companies = []
+        
+        # Extract structured data from criteria
         keywords = criteria.get("keywords", [])
         industry = criteria.get("industry", "")
+        location = criteria.get("location", "")
+        company_size = criteria.get("company_size", "")
+        exclude_keywords = criteria.get("exclude_keywords", [])
         
-        # Build search queries
+        logger.info(f"🎯 STRUCTURED SEARCH PARAMETERS:")
+        logger.info(f"  Industry: {industry}")
+        logger.info(f"  Location: {location}")
+        logger.info(f"  Company Size: {company_size}")
+        logger.info(f"  Keywords: {keywords}")
+        logger.info(f"  Exclude: {exclude_keywords}")
+        
+        # Build SMART search queries using ALL parameters
         search_queries = []
         
-        # Primary query with industry and keywords
+        # 1. Highly targeted queries combining all parameters
+        if industry and location and keywords:
+            # "Technology companies in San Francisco AI SaaS"
+            search_queries.append(f"{industry} companies in {location} {' '.join(keywords[:2])}")
+            # "San Francisco Technology startups AI machine learning"
+            search_queries.append(f"{location} {industry} startups {' '.join(keywords[:3])}")
+        
+        # 2. Industry + location specific
+        if industry and location:
+            search_queries.append(f"{industry} companies {location}")
+            search_queries.append(f"top {industry} businesses {location}")
+            search_queries.append(f"{industry} startups {location}")
+        
+        # 3. Keyword-focused with location
+        if keywords and location:
+            for keyword in keywords[:3]:
+                search_queries.append(f"{keyword} companies {location}")
+                search_queries.append(f"{keyword} startups {location}")
+        
+        # 4. Industry + keyword combinations
         if industry and keywords:
-            search_queries.append(f"{industry} companies {' '.join(keywords[:3])}")
+            for keyword in keywords[:3]:
+                search_queries.append(f"{industry} {keyword} companies")
         
-        # Company-focused queries
-        for keyword in keywords[:5]:
-            search_queries.append(f"{keyword} companies startups")
-            search_queries.append(f"{keyword} business solutions")
+        # 5. Company size specific searches
+        if company_size and industry and location:
+            size_term = "startups" if "Startup" in company_size else "companies"
+            search_queries.append(f"{company_size.split('(')[0].strip()} {industry} {size_term} {location}")
         
-        # Industry-specific queries
-        if industry:
-            search_queries.append(f"{industry} companies list")
-            search_queries.append(f"top {industry} companies")
+        # 6. Pure keyword searches (broader)
+        for keyword in keywords[:2]:
+            search_queries.append(f"{keyword} company directory")
+            search_queries.append(f"best {keyword} companies")
         
-        logger.info(f"🔎 Searching with {len(search_queries)} queries: {search_queries[:3]}")
+        logger.info(f"🔎 Generated {len(search_queries)} targeted search queries:")
+        for i, query in enumerate(search_queries[:5], 1):
+            logger.info(f"  {i}. \"{query}\"")
+        if len(search_queries) > 5:
+            logger.info(f"  ... and {len(search_queries) - 5} more queries")
         
         if not AIOHTTP_AVAILABLE:
             logger.error(f"❌ aiohttp not available, cannot make HTTP requests")
@@ -153,17 +188,30 @@ class RealResearchEngine:
             logger.info(f"="*80)
             return []
             
+        # Execute searches - do MORE searches for better coverage
+        max_queries = min(len(search_queries), 10)  # Use up to 10 queries (was 3!)
+        logger.info(f"📡 Will execute {max_queries} Google searches for comprehensive results")
+        
         async with aiohttp.ClientSession() as session:
-            for query in search_queries[:3]:  # Limit to 3 queries to avoid rate limits
+            for i, query in enumerate(search_queries[:max_queries], 1):
                 try:
+                    logger.info(f"🌐 Search {i}/{max_queries}: \"{query}\"")
                     companies_found = await self._search_google(session, query, target_count)
                     companies.extend(companies_found)
+                    logger.info(f"  ✅ Found {len(companies_found)} companies from this search")
+                    logger.info(f"  📊 Total so far: {len(companies)} companies")
                     
-                    if len(companies) >= target_count:
+                    # Small delay between searches to be respectful to Google API
+                    if i < max_queries:
+                        await asyncio.sleep(1)  # 1 second delay between searches
+                    
+                    # Keep searching until we have enough UNIQUE companies
+                    if len(set(c.get('domain', '') for c in companies)) >= target_count:
+                        logger.info(f"✅ Reached target count of unique companies")
                         break
                         
                 except Exception as e:
-                    logger.error(f"Error searching for '{query}': {e}")
+                    logger.error(f"❌ Error searching for '{query}': {e}")
                     continue
         
         # Remove duplicates and limit results
