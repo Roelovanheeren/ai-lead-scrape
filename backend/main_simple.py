@@ -464,41 +464,13 @@ async def serve_react_app():
 @app.get("/ping")
 async def ping():
     """Simple ping endpoint for health checks"""
-    logger.info("🔍 Ping endpoint called!")
-    try:
-        response = {"status": "ok", "message": "pong", "timestamp": datetime.utcnow().isoformat()}
-        logger.info(f"✅ Ping endpoint returning: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"❌ Ping error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {"status": "error", "message": str(e)}
+    return {"status": "ok", "message": "pong"}
 
 @app.get("/health-check")
 async def health_check_simple():
     """Simple health check endpoint for Railway"""
-    logger.info("🔍 Health check endpoint called!")
-    try:
-        response = {
-            "status": "ok",
-            "message": "AI Lead Generation Platform API", 
-            "version": "2.0.0",
-            "health": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        logger.info(f"✅ Health check returning: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"❌ Health check error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {
-            "status": "error",
-            "message": "Health check failed", 
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+    # Ultra-simple response for Railway health check
+    return {"status": "ok", "health": "healthy"}
 
 @app.get("/api")
 async def api_info():
