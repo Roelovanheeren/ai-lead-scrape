@@ -506,6 +506,28 @@ async def health_check():
             "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
             "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
         }
+
+@app.get("/debug/google-search")
+async def debug_google_search(q: str, n: int = 5):
+    """Debug endpoint to verify Google Custom Search live from the backend."""
+    try:
+        logger.info(f"🔍 Debug Google Search: q='{q}', n={n}")
+        criteria = {"keywords": q.split(), "industry": ""}
+        # Call the same search used by jobs
+        results = await search_companies(criteria, n)
+        logger.info(f"🔍 Debug Google Search returned {len(results)} results")
+        return {
+            "success": True,
+            "count": len(results),
+            "keys": {
+                "google_api_key": "SET" if os.getenv("GOOGLE_API_KEY") else "NOT SET",
+                "google_cse_id": "SET" if os.getenv("GOOGLE_CSE_ID") else "NOT SET",
+            },
+            "sample": results[: min(3, len(results))]
+        }
+    except Exception as e:
+        logger.error(f"❌ Debug Google Search error: {e}")
+        return {"success": False, "error": str(e)}
     except Exception as e:
         logger.error(f"Health check error: {e}")
         return {
