@@ -496,6 +496,13 @@ async def health_check():
             "oauth_routes_available": OAUTH_ROUTES_AVAILABLE,
             "sheets_routes_available": SHEETS_ROUTES_AVAILABLE
         }
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 @app.get("/debug/google-search")
 async def debug_google_search(q: str, n: int = 5):
@@ -518,13 +525,6 @@ async def debug_google_search(q: str, n: int = 5):
     except Exception as e:
         logger.error(f"❌ Debug Google Search error: {e}")
         return {"success": False, "error": str(e)}
-    except Exception as e:
-        logger.error(f"Health check error: {e}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
 
 @app.post("/jobs/")
 async def create_job(job_data: dict):
