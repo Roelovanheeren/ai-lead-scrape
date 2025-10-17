@@ -106,14 +106,22 @@ class RealResearchEngine:
     
     async def search_companies(self, criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
         """Search for companies using Google Custom Search API"""
-        logger.info(f"Searching companies with criteria: {criteria}")
+        logger.info(f"="*80)
+        logger.info(f"🔍 SEARCH_COMPANIES CALLED")
+        logger.info(f"Criteria: {criteria}")
+        logger.info(f"Target count: {target_count}")
         logger.info(f"Google API key available: {bool(self.google_api_key)}")
         logger.info(f"Google CSE ID available: {bool(self.google_cse_id)}")
+        logger.info(f"AIOHTTP available: {AIOHTTP_AVAILABLE}")
         
         if not self.google_api_key or not self.google_cse_id:
-            logger.error("Google API credentials not configured")
-            logger.error(f"GOOGLE_API_KEY: {'SET' if self.google_api_key else 'NOT SET'}")
-            logger.error(f"GOOGLE_CSE_ID: {'SET' if self.google_cse_id else 'NOT SET'}")
+            logger.error(f"❌ Google API credentials not configured")
+            logger.error(f"GOOGLE_API_KEY: {'SET (len={})'.format(len(self.google_api_key)) if self.google_api_key else 'NOT SET'}")
+            logger.error(f"GOOGLE_CSE_ID: {'SET (len={})'.format(len(self.google_cse_id)) if self.google_cse_id else 'NOT SET'}")
+            logger.error(f"Please set these environment variables in Railway:")
+            logger.error(f"  - GOOGLE_API_KEY: Your Google API key")
+            logger.error(f"  - GOOGLE_CSE_ID (or GOOGLE_SEARCH_ENGINE_ID): Your Custom Search Engine ID")
+            logger.info(f"="*80)
             return []
         
         companies = []
@@ -137,10 +145,12 @@ class RealResearchEngine:
             search_queries.append(f"{industry} companies list")
             search_queries.append(f"top {industry} companies")
         
-        logger.info(f"Searching with queries: {search_queries}")
+        logger.info(f"🔎 Searching with {len(search_queries)} queries: {search_queries[:3]}")
         
         if not AIOHTTP_AVAILABLE:
-            logger.warning("aiohttp not available, returning empty company list")
+            logger.error(f"❌ aiohttp not available, cannot make HTTP requests")
+            logger.error(f"Install aiohttp: pip install aiohttp")
+            logger.info(f"="*80)
             return []
             
         async with aiohttp.ClientSession() as session:
@@ -169,13 +179,17 @@ class RealResearchEngine:
                 if len(unique_companies) >= target_count:
                     break
         
-        logger.info(f"Found {len(unique_companies)} unique companies")
+        logger.info(f"✅ Found {len(unique_companies)} unique companies (target: {target_count})")
+        logger.info(f"Returning {min(len(unique_companies), target_count)} companies")
+        logger.info(f"="*80)
         return unique_companies[:target_count]
     
     async def _search_google(self, session, query: str, max_results: int) -> List[Dict[str, Any]]:
         """Search Google Custom Search API"""
+        logger.info(f"🌐 Making Google API request for query: '{query}'")
+        
         if not AIOHTTP_AVAILABLE:
-            logger.warning("aiohttp not available, skipping Google search")
+            logger.error(f"❌ aiohttp not available, skipping Google search")
             return []
             
         url = "https://www.googleapis.com/customsearch/v1"
@@ -187,12 +201,21 @@ class RealResearchEngine:
         }
         
         try:
+            logger.info(f"📡 Sending request to: {url}")
+            logger.info(f"Parameters: key=*****, cx={self.google_cse_id[:10]}..., q={query[:50]}...")
+            
             async with session.get(url, params=params) as response:
+                logger.info(f"Response status: {response.status}")
+                
                 if response.status != 200:
-                    logger.error(f"Google API error: {response.status}")
+                    error_text = await response.text()
+                    logger.error(f"❌ Google API error {response.status}: {error_text[:500]}")
                     return []
                 
                 data = await response.json()
+                items_count = len(data.get("items", []))
+                logger.info(f"✅ Received {items_count} search results from Google")
+                
                 companies = []
                 
                 for item in data.get("items", []):

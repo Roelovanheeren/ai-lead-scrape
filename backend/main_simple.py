@@ -80,7 +80,13 @@ job_storage = {}
 async def process_job_background(job_id: str, job_data: dict):
     """Process a job in the background with REAL web scraping and research"""
     try:
+        logger.info(f"="*80)
         logger.info(f"Starting REAL background processing for job {job_id}")
+        logger.info(f"REAL_RESEARCH_AVAILABLE: {REAL_RESEARCH_AVAILABLE}")
+        logger.info(f"Job data keys: {list(job_data.keys())}")
+        logger.info(f"Prompt: {job_data.get('prompt', 'N/A')}")
+        logger.info(f"Target count: {job_data.get('target_count', 'N/A')}")
+        logger.info(f"="*80)
         
         # Update job status to processing
         job_storage[job_id] = {
@@ -111,20 +117,36 @@ async def process_job_background(job_id: str, job_data: dict):
         logger.info(f"Job {job_id}: Targeting criteria: {targeting_criteria}")
         logger.info(f"Job {job_id}: Target count: {job_data.get('target_count', 10)}")
         
-        companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
-        logger.info(f"Job {job_id}: Found {len(companies)} companies")
+        logger.info(f"Job {job_id}: 🔍 Calling search_companies() function...")
+        try:
+            companies = await search_companies(targeting_criteria, job_data.get("target_count", 10))
+            logger.info(f"Job {job_id}: ✅ search_companies() returned {len(companies)} companies")
+        except Exception as search_error:
+            logger.error(f"Job {job_id}: ❌ search_companies() failed: {search_error}")
+            import traceback
+            logger.error(f"Job {job_id}: Traceback: {traceback.format_exc()}")
+            companies = []
         
         if not companies:
-            logger.warning(f"Job {job_id}: No companies found, falling back to simulation")
-            logger.warning(f"Job {job_id}: This means Google Custom Search API is not working")
+            logger.warning(f"="*80)
+            logger.warning(f"Job {job_id}: ⚠️ No companies found, falling back to simulation")
+            logger.warning(f"Job {job_id}: This means Google Custom Search API is not working properly")
             google_key = os.getenv("GOOGLE_API_KEY")
             google_cse = os.getenv("GOOGLE_CSE_ID") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
-            logger.warning(f"Job {job_id}: GOOGLE_API_KEY is {'SET' if google_key else 'NOT SET'}")
-            logger.warning(f"Job {job_id}: GOOGLE_CSE_ID/GOOGLE_SEARCH_ENGINE_ID is {'SET' if google_cse else 'NOT SET'}")
+            logger.warning(f"Job {job_id}: GOOGLE_API_KEY is {'SET (len={len(google_key)})' if google_key else 'NOT SET'}")
+            logger.warning(f"Job {job_id}: GOOGLE_CSE_ID/GOOGLE_SEARCH_ENGINE_ID is {'SET (len={len(google_cse)})' if google_cse else 'NOT SET'}")
             if not google_key:
-                logger.error(f"Job {job_id}: GOOGLE_API_KEY environment variable is missing!")
+                logger.error(f"Job {job_id}: ❌ GOOGLE_API_KEY environment variable is missing!")
             if not google_cse:
-                logger.error(f"Job {job_id}: GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID environment variable is missing!")
+                logger.error(f"Job {job_id}: ❌ GOOGLE_CSE_ID or GOOGLE_SEARCH_ENGINE_ID environment variable is missing!")
+            
+            # Check if real research module is loaded
+            logger.warning(f"Job {job_id}: REAL_RESEARCH_AVAILABLE flag: {REAL_RESEARCH_AVAILABLE}")
+            if not REAL_RESEARCH_AVAILABLE:
+                logger.error(f"Job {job_id}: ❌ Real research module failed to load!")
+                logger.error(f"Job {job_id}: Check if all dependencies are installed (aiohttp, openai, anthropic)")
+            logger.warning(f"="*80)
+            
             # Fallback to simulation if no companies found
             await _fallback_simulation(job_id, job_data)
             return
@@ -215,7 +237,24 @@ async def process_job_background(job_id: str, job_data: dict):
         # Filter out existing leads if requested
         final_leads = personalized_leads
         if job_data.get("exclude_existing_leads", False) and job_data.get("existing_leads"):
-            existing_emails = {lead.get('email', '').lower() for lead in job_data.get("existing_leads", [])}
+            # Handle both list and dict formats for existing_leads
+            existing_leads_data = job_data.get("existing_leads", [])
+            existing_emails = set()
+            
+            for item in existing_leads_data:
+                if isinstance(item, dict):
+                    # If it's a dict, use .get()
+                    email = item.get('email', '')
+                    if email:
+                        existing_emails.add(email.lower())
+                elif isinstance(item, list) and len(item) > 0:
+                    # If it's a list (raw sheet row), try to find email-like values
+                    for value in item:
+                        if isinstance(value, str) and '@' in value and '.' in value:
+                            existing_emails.add(value.lower())
+                            break
+            
+            logger.info(f"Job {job_id}: Found {len(existing_emails)} existing emails to exclude")
             final_leads = [lead for lead in personalized_leads if lead.get('email', '').lower() not in existing_emails]
             logger.info(f"Job {job_id}: Filtered out existing leads, {len(final_leads)} remaining")
         
@@ -278,20 +317,31 @@ async def _fallback_simulation(job_id: str, job_data: dict):
     existing_leads = job_data.get("existing_leads", [])
     exclude_existing = job_data.get("exclude_existing_leads", False)
     
+    # Parse existing leads to get emails (handle both dict and list formats)
+    existing_emails = set()
+    if exclude_existing and existing_leads:
+        for item in existing_leads:
+            if isinstance(item, dict):
+                email = item.get('email', '')
+                if email:
+                    existing_emails.add(email.lower())
+            elif isinstance(item, list) and len(item) > 0:
+                # If it's a list, try to find email-like values
+                for value in item:
+                    if isinstance(value, str) and '@' in value and '.' in value:
+                        existing_emails.add(value.lower())
+                        break
+    
+    logger.info(f"Job {job_id}: Excluding {len(existing_emails)} existing emails from simulation")
+    
     simulated_leads = []
     for i in range(min(target_count, 50)):
-        if exclude_existing and existing_leads:
-            company_name = f"Company {i+1}"
-            email = f"contact{i+1}@company{i+1}.com"
-            
-            is_duplicate = any(
-                existing.get('company', '').lower() == company_name.lower() or 
-                existing.get('email', '').lower() == email.lower()
-                for existing in existing_leads
-            )
-            
-            if is_duplicate:
-                continue
+        company_name = f"Company {i+1}"
+        email = f"contact{i+1}@company{i+1}.com"
+        
+        # Check if email already exists
+        if email.lower() in existing_emails:
+            continue
         
         lead = {
             "id": f"lead_{i+1}",
