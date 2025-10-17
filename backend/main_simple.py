@@ -269,8 +269,8 @@ async def process_job_background(job_id: str, job_data: dict):
                     "message": f"Finding contacts for {company.get('name', 'Unknown')}... ({i+1}/{len(researched_companies)})"
                 })
                 
-                # Find contacts for this company
-                company_contacts = await find_company_contacts(company)
+                # Find contacts for this company, passing targeting criteria from research guide
+                company_contacts = await find_company_contacts(company, targeting_criteria)
                 leads.extend(company_contacts)
                 
                 logger.info(f"Job {job_id}: Found {len(company_contacts)} contacts for {company.get('name')}")

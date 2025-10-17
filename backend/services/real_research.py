@@ -90,7 +90,9 @@ class RealResearchEngine:
           "funding_stage": "funding stage if mentioned",
           "technology": "tech stack if mentioned",
           "pain_points": ["specific", "pain", "points"],
-          "search_queries": ["ready-to-use Google search query 1", "query 2", "query 3"]
+          "search_queries": ["ready-to-use Google search query 1", "query 2", "query 3"],
+          "target_roles": ["specific job titles/roles to target, e.g. CEO, VP of Development, etc."],
+          "target_department": "department to focus on (executive, engineering, sales, marketing, etc.)"
         }}
         
         IMPORTANT:
@@ -100,9 +102,16 @@ class RealResearchEngine:
         - Generate 5-10 ready-to-use Google search queries based on the criteria
         - Be specific and actionable - these will be used directly for web searches
         
-        Example: If guide says "target SaaS companies with 50-200 employees", include:
+        Examples:
+        
+        If guide says "target SaaS companies with 50-200 employees", include:
         - keywords: ["SaaS", "software", "cloud", "subscription"]
         - search_queries: ["SaaS companies 50-200 employees", "growing software companies", "cloud software startups"]
+        
+        If guide says "contact VP of Development or Project Managers at real estate companies", include:
+        - target_roles: ["VP of Development", "Vice President of Development", "Project Manager", "Development Manager"]
+        - target_department: "executive"
+        - industry: "Real Estate Development"
         """
         
         try:
@@ -509,8 +518,14 @@ class RealResearchEngine:
             logger.error(f"Error analyzing company with AI: {e}")
             return {"analysis": "AI analysis failed"}
     
-    async def find_company_contacts(self, company: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Find REAL contacts and decision makers for a company using Hunter.io"""
+    async def find_company_contacts(self, company: Dict[str, Any], targeting_criteria: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Find REAL contacts and decision makers for a company using Hunter.io
+        
+        Args:
+            company: Company information (name, domain, etc.)
+            targeting_criteria: Optional targeting criteria from research guide
+                - Can specify target_roles, target_titles, target_departments
+        """
         company_name = company.get("name", "Unknown Company")
         domain = company.get("domain", "company.com")
         
@@ -523,12 +538,26 @@ class RealResearchEngine:
             logger.error("❌ Hunter.io client not available")
             return []
         
+        # Extract targeting preferences from criteria
+        target_roles = None
+        target_departments = "executive"  # Default to executives
+        
+        if targeting_criteria:
+            # Check for specific role targeting in research guide
+            target_roles = targeting_criteria.get("target_roles", [])
+            target_departments = targeting_criteria.get("target_department", "executive")
+            
+            if target_roles:
+                logger.info(f"🎯 Targeting specific roles from research guide: {target_roles}")
+            if target_departments != "executive":
+                logger.info(f"🎯 Targeting specific department: {target_departments}")
+        
         # Use Hunter.io to find real contacts
         try:
             logger.info(f"📧 Searching Hunter.io for contacts at {domain}...")
             hunter_results = await hunter_client.find_emails_at_domain(
                 domain=domain,
-                department="executive"  # Focus on decision makers
+                department=target_departments
             )
             
             if not hunter_results:
@@ -537,9 +566,30 @@ class RealResearchEngine:
             
             logger.info(f"✅ Found {len(hunter_results)} REAL contacts via Hunter.io")
             
+            # Filter contacts based on targeting criteria if specified
+            filtered_results = hunter_results
+            if target_roles:
+                logger.info(f"🔍 Filtering contacts by target roles: {target_roles}")
+                filtered_results = []
+                for contact in hunter_results:
+                    position = (contact.get("position", "") or "").lower()
+                    # Check if any target role matches the position
+                    if any(role.lower() in position for role in target_roles):
+                        filtered_results.append(contact)
+                        logger.info(f"   ✅ Matched: {contact.get('position')} (looking for {target_roles})")
+                    else:
+                        logger.info(f"   ❌ Skipped: {contact.get('position')} (doesn't match {target_roles})")
+                
+                logger.info(f"✅ Filtered to {len(filtered_results)} contacts matching target roles")
+                
+                # If filtering removed everyone, use all results as fallback
+                if not filtered_results:
+                    logger.warning(f"⚠️ No contacts matched target roles, using all {len(hunter_results)} contacts")
+                    filtered_results = hunter_results
+            
             # Convert Hunter.io results to our contact format
             contacts = []
-            for i, hunter_data in enumerate(hunter_results[:5], 1):  # Limit to 5 contacts
+            for i, hunter_data in enumerate(filtered_results[:5], 1):  # Limit to 5 contacts
                 # Build full name
                 first_name = hunter_data.get("first_name", "")
                 last_name = hunter_data.get("last_name", "")
@@ -565,7 +615,8 @@ class RealResearchEngine:
                     "verification_status": hunter_data.get("verification_status", ""),
                     "source": "Hunter.io",
                     "created_at": datetime.utcnow().isoformat(),
-                    "research_data": company.get("research_data", {})
+                    "research_data": company.get("research_data", {}),
+                    "targeting_match": bool(target_roles)  # Flag if we used role targeting
                 }
                 contacts.append(contact)
                 
@@ -655,8 +706,8 @@ async def search_companies(criteria: Dict[str, Any], target_count: int) -> List[
 async def research_company_deep(company: Dict[str, Any]) -> Dict[str, Any]:
     return await real_research_engine.research_company_deep(company)
 
-async def find_company_contacts(company: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return await real_research_engine.find_company_contacts(company)
+async def find_company_contacts(company: Dict[str, Any], targeting_criteria: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    return await real_research_engine.find_company_contacts(company, targeting_criteria)
 
 async def generate_personalized_outreach(lead: Dict[str, Any]) -> Dict[str, Any]:
     return await real_research_engine.generate_personalized_outreach(lead)
