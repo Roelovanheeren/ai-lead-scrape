@@ -101,17 +101,39 @@ class RealResearchEngine:
         - If the guide mentions specific company types, industries, or criteria, include those
         - Generate 5-10 ready-to-use Google search queries based on the criteria
         - Be specific and actionable - these will be used directly for web searches
+        - CRITICAL: Search queries should target COMPANY WEBSITES, not job boards or articles
+        - Include company names, "top companies", "leading firms", "portfolio", "about us" to find real companies
         
         Examples:
         
         If guide says "target SaaS companies with 50-200 employees", include:
         - keywords: ["SaaS", "software", "cloud", "subscription"]
-        - search_queries: ["SaaS companies 50-200 employees", "growing software companies", "cloud software startups"]
+        - search_queries: [
+            "top SaaS companies 50-200 employees",
+            "leading cloud software companies",
+            "SaaS startup company websites",
+            "enterprise SaaS vendors portfolio"
+          ]
         
         If guide says "contact VP of Development or Project Managers at real estate companies", include:
         - target_roles: ["VP of Development", "Vice President of Development", "Project Manager", "Development Manager"]
         - target_department: "executive"
         - industry: "Real Estate Development"
+        - search_queries: [
+            "top real estate development firms",
+            "leading commercial real estate developers",
+            "real estate investment companies portfolio",
+            "major residential developers about us"
+          ]
+        
+        BAD QUERIES (these find job boards/articles):
+        - "real estate development companies 50-500 employees" (job listings)
+        - "VP of Development jobs" (job boards)
+        
+        GOOD QUERIES (these find company websites):
+        - "top real estate development firms USA"
+        - "leading commercial developers portfolio"
+        - "major real estate investment companies"
         """
         
         try:
@@ -183,65 +205,64 @@ class RealResearchEngine:
         # Build SMART search queries using ALL parameters
         search_queries = []
         
-        # 1. Highly targeted queries combining all parameters
-        if industry and location and keywords:
-            # "Technology companies in San Francisco AI SaaS"
-            search_queries.append(f"{industry} companies in {location} {' '.join(keywords[:2])}")
-            # "San Francisco Technology startups AI machine learning"
-            search_queries.append(f"{location} {industry} startups {' '.join(keywords[:3])}")
+        # PRIORITY 1: Use AI-generated search queries from research guide analysis (MOST SPECIFIC)
+        ai_queries = criteria.get("search_queries", [])
+        if ai_queries:
+            logger.info(f"✅ PRIORITY 1: Using {len(ai_queries)} AI-generated search queries from research guide")
+            search_queries.extend(ai_queries)
         
-        # 2. Industry + location specific
-        if industry and location:
-            search_queries.append(f"{industry} companies {location}")
-            search_queries.append(f"top {industry} businesses {location}")
-            search_queries.append(f"{industry} startups {location}")
-        
-        # 3. Keyword-focused with location
-        if keywords and location:
-            for keyword in keywords[:3]:
-                search_queries.append(f"{keyword} companies {location}")
-                search_queries.append(f"{keyword} startups {location}")
-        
-        # 4. Industry + keyword combinations
-        if industry and keywords:
-            for keyword in keywords[:3]:
-                search_queries.append(f"{industry} {keyword} companies")
-        
-        # 5. Company size specific searches
-        if company_size and industry and location:
-            size_term = "startups" if "Startup" in company_size else "companies"
-            search_queries.append(f"{company_size.split('(')[0].strip()} {industry} {size_term} {location}")
-        
-        # 6. Pure keyword searches (broader)
-        for keyword in keywords[:2]:
-            search_queries.append(f"{keyword} company directory")
-            search_queries.append(f"best {keyword} companies")
-        
-        # NEW: If no queries from structured fields, use AI-generated queries or fallback to prompt
-        if len(search_queries) == 0:
-            logger.warning(f"⚠️ No queries from structured fields, checking for AI-generated queries")
+        # PRIORITY 2: Build complementary queries from structured fields (AS FALLBACK/SUPPLEMENT)
+        # Only add these if we don't have enough AI queries
+        if len(search_queries) < 10:
+            # 1. Highly targeted queries combining all parameters
+            if industry and location and keywords:
+                # "Technology companies in San Francisco AI SaaS"
+                search_queries.append(f"{industry} companies in {location} {' '.join(keywords[:2])}")
+                # "San Francisco Technology startups AI machine learning"
+                search_queries.append(f"{location} {industry} startups {' '.join(keywords[:3])}")
             
-            # First priority: Use AI-generated search queries from research guide analysis
-            ai_queries = criteria.get("search_queries", [])
-            if ai_queries:
-                logger.info(f"✅ Using {len(ai_queries)} AI-generated search queries from research guide")
-                search_queries.extend(ai_queries)
+            # 2. Industry + location specific
+            if industry and location:
+                search_queries.append(f"{industry} companies {location}")
+                search_queries.append(f"top {industry} businesses {location}")
+                search_queries.append(f"{industry} startups {location}")
             
-            # Second priority: Build queries from extracted keywords
-            if not search_queries and keywords:
-                logger.info(f"📝 Building queries from {len(keywords)} extracted keywords")
-                for keyword in keywords[:5]:
-                    search_queries.append(f"{keyword} companies")
-                    search_queries.append(f"{keyword} startups")
+            # 3. Keyword-focused with location
+            if keywords and location:
+                for keyword in keywords[:3]:
+                    search_queries.append(f"{keyword} companies {location}")
+                    search_queries.append(f"{keyword} startups {location}")
             
-            # Third priority: Use original prompt directly
-            if not search_queries and original_prompt:
-                logger.info(f"📝 Using original prompt as search query")
-                search_queries.append(original_prompt)
-                # Extract words from prompt as additional queries
-                prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
-                for word in prompt_words:
-                    search_queries.append(f"{word} companies")
+            # 4. Industry + keyword combinations
+            if industry and keywords:
+                for keyword in keywords[:3]:
+                    search_queries.append(f"{industry} {keyword} companies")
+            
+            # 5. Company size specific searches
+            if company_size and industry and location:
+                size_term = "startups" if "Startup" in company_size else "companies"
+                search_queries.append(f"{company_size.split('(')[0].strip()} {industry} {size_term} {location}")
+            
+            # 6. Pure keyword searches (broader)
+            for keyword in keywords[:2]:
+                search_queries.append(f"{keyword} company directory")
+                search_queries.append(f"best {keyword} companies")
+        
+        # PRIORITY 3: Fallback to keywords if still no queries
+        if len(search_queries) == 0 and keywords:
+            logger.warning(f"⚠️ No AI queries or structured fields, using extracted keywords")
+            for keyword in keywords[:5]:
+                search_queries.append(f"{keyword} companies")
+                search_queries.append(f"{keyword} startups")
+        
+        # PRIORITY 4: Last resort - use original prompt
+        if len(search_queries) == 0 and original_prompt:
+            logger.warning(f"⚠️ No queries generated, falling back to original prompt")
+            search_queries.append(original_prompt)
+            # Extract words from prompt as additional queries
+            prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
+            for word in prompt_words:
+                search_queries.append(f"{word} companies")
         
         logger.info(f"🔎 Generated {len(search_queries)} targeted search queries:")
         for i, query in enumerate(search_queries[:5], 1):
@@ -307,11 +328,30 @@ class RealResearchEngine:
             logger.error(f"❌ aiohttp not available, skipping Google search")
             return []
             
+        # Exclude job boards and recruitment sites from results
+        excluded_sites = [
+            "linkedin.com/jobs",
+            "indeed.com",
+            "glassdoor.com",
+            "ziprecruiter.com",
+            "monster.com",
+            "careerbuilder.com",
+            "flexjobs.com",
+            "simplyhired.com",
+            "dice.com",
+            "crunchbase.com/jobs"
+        ]
+        
+        # Add site exclusions to query
+        query_with_exclusions = query
+        for site in excluded_sites[:3]:  # Only use top 3 to keep query reasonable
+            query_with_exclusions += f" -site:{site}"
+        
         url = "https://www.googleapis.com/customsearch/v1"
         params = {
             "key": self.google_api_key,
             "cx": self.google_cse_id,
-            "q": query,
+            "q": query_with_exclusions,
             "num": min(max_results, 10)  # Google API limit
         }
         
@@ -571,14 +611,49 @@ class RealResearchEngine:
             if target_roles:
                 logger.info(f"🔍 Filtering contacts by target roles: {target_roles}")
                 filtered_results = []
+                
+                # Extract key role keywords for more flexible matching
+                # E.g., "VP of Development" → ["vp", "vice president", "development", "developer"]
+                role_keywords = set()
+                for role in target_roles:
+                    role_lower = role.lower()
+                    role_keywords.add(role_lower)
+                    
+                    # Extract individual important words (nouns, not filler words)
+                    words = [w.strip() for w in role_lower.split() if len(w.strip()) > 2]
+                    role_keywords.update(words)
+                    
+                    # Add common abbreviations and synonyms
+                    if "vice president" in role_lower or "vp" in role_lower:
+                        role_keywords.update(["vp", "vice president", "svp", "senior vice president"])
+                    if "director" in role_lower:
+                        role_keywords.update(["director", "managing director"])
+                    if "development" in role_lower or "developer" in role_lower:
+                        role_keywords.update(["development", "developer", "developing"])
+                    if "manager" in role_lower:
+                        role_keywords.update(["manager", "management"])
+                    if "project" in role_lower:
+                        role_keywords.update(["project", "projects"])
+                
                 for contact in hunter_results:
                     position = (contact.get("position", "") or "").lower()
-                    # Check if any target role matches the position
+                    
+                    # Exact match check (highest priority)
                     if any(role.lower() in position for role in target_roles):
                         filtered_results.append(contact)
-                        logger.info(f"   ✅ Matched: {contact.get('position')} (looking for {target_roles})")
+                        logger.info(f"   ✅ Matched (exact): {contact.get('position')}")
+                        continue
+                    
+                    # Keyword match check (flexible matching)
+                    position_words = set(position.replace("-", " ").split())
+                    matching_keywords = role_keywords & position_words
+                    
+                    # If at least 1 significant keyword matches, include the contact
+                    if matching_keywords:
+                        filtered_results.append(contact)
+                        logger.info(f"   ✅ Matched (keywords: {matching_keywords}): {contact.get('position')}")
                     else:
-                        logger.info(f"   ❌ Skipped: {contact.get('position')} (doesn't match {target_roles})")
+                        logger.info(f"   ❌ Skipped: {contact.get('position')}")
                 
                 logger.info(f"✅ Filtered to {len(filtered_results)} contacts matching target roles")
                 
