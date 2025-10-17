@@ -132,33 +132,35 @@ async def process_job_background(job_id: str, job_data: dict):
             "target_count": job_data.get("target_count", 10)
         }
         
-        # Step 1: Read research guide from connected sheet (if available)
+        # Step 1: Read knowledge base documents (research guides, outreach guides, etc.)
         job_storage[job_id].update({
             "progress": 5,
             "message": "Reading research guide from your knowledge base..."
         })
         
-        research_guide = None
-        connected_sheet_id = job_data.get("connected_sheet_id")
+        research_guide_text = None
+        knowledge_base_docs = job_data.get("knowledge_base_documents", [])
         
-        if connected_sheet_id:
-            logger.info(f"Job {job_id}: 📚 Reading research guide from sheet: {connected_sheet_id}")
-            try:
-                from services.google_sheets_service import google_sheets_service
-                sheet_data = await google_sheets_service.read_sheet_data(
-                    connected_sheet_id,
-                    range_name="A:Z"  # Read all data
-                )
-                if sheet_data.get("success"):
-                    research_guide = sheet_data.get("data", [])
-                    logger.info(f"✅ Loaded research guide with {len(research_guide)} rows")
-                    logger.info(f"📋 Guide preview: {research_guide[:3] if research_guide else 'empty'}")
-                else:
-                    logger.warning(f"⚠️ Could not read research guide: {sheet_data.get('error')}")
-            except Exception as e:
-                logger.warning(f"⚠️ Error reading research guide: {e}")
+        if knowledge_base_docs:
+            logger.info(f"Job {job_id}: 📚 Received {len(knowledge_base_docs)} knowledge base documents")
+            # Extract text from all documents
+            guide_texts = []
+            for doc in knowledge_base_docs:
+                doc_name = doc.get("name", "Unknown")
+                # Prefer extractedText if available, otherwise use content
+                text = doc.get("extractedText") or doc.get("content", "")
+                if text:
+                    guide_texts.append(f"=== {doc_name} ===\n{text}")
+                    logger.info(f"Job {job_id}: 📄 Loaded document '{doc_name}' ({len(text)} chars)")
+            
+            if guide_texts:
+                research_guide_text = "\n\n".join(guide_texts)
+                logger.info(f"Job {job_id}: ✅ Loaded {len(guide_texts)} documents with {len(research_guide_text)} total characters")
+                logger.info(f"Job {job_id}: 📋 Guide preview: {research_guide_text[:500]}...")
+            else:
+                logger.warning(f"Job {job_id}: ⚠️ Knowledge base documents provided but no text extracted")
         else:
-            logger.info(f"Job {job_id}: No connected sheet, using prompt-based research")
+            logger.info(f"Job {job_id}: No knowledge base documents, using prompt-based research only")
         
         # Step 2: Extract targeting criteria using AI from prompt + research guide
         job_storage[job_id].update({
@@ -170,11 +172,10 @@ async def process_job_background(job_id: str, job_data: dict):
         prompt = job_data.get("prompt", "")
         logger.info(f"Job {job_id}: 🎯 User prompt: {prompt}")
         
-        if research_guide:
+        if research_guide_text:
             # Include research guide in the analysis
-            guide_text = "\n".join(["\t".join(row) for row in research_guide[:20]])  # First 20 rows
-            prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{guide_text}"
-            logger.info(f"Job {job_id}: 📖 Including research guide in analysis")
+            prompt_with_guide = f"{prompt}\n\nResearch Guide Documents:\n{research_guide_text}"
+            logger.info(f"Job {job_id}: 📖 Including research guide documents in AI analysis")
         else:
             prompt_with_guide = prompt
         

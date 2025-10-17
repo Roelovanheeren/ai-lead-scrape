@@ -260,7 +260,14 @@ export default function JobWizard({}: JobWizardProps) {
         existing_leads: existingLeads,
         connected_sheet_id: activeConnectedSheet?.id,
         header_mapping: headerMapping?.mapping,
-        output_format: headerMapping ? 'sheet_mapped' : formData.outputFormat
+        output_format: headerMapping ? 'sheet_mapped' : formData.outputFormat,
+        // CRITICAL: Send knowledge base documents to backend
+        knowledge_base_documents: knowledgeBase.map(doc => ({
+          name: doc.name,
+          content: doc.content,
+          extractedText: doc.extractedText,
+          type: doc.type
+        }))
       }
       
       const response = await apiClient.createJob(jobData)

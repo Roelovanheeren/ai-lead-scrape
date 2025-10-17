@@ -59,26 +59,50 @@ class RealResearchEngine:
             self.claude_client = None
     
     async def extract_targeting_criteria(self, prompt: str) -> Dict[str, Any]:
-        """Extract structured targeting criteria from user prompt using AI"""
+        """Extract structured targeting criteria from user prompt using AI
+        
+        The prompt may include research guide documents that explain:
+        - What types of companies to target
+        - What industries to focus on
+        - What criteria make a good lead
+        - How to exclude certain companies
+        """
         if not self.openai_client and not self.claude_client:
             logger.warning("No AI client available, using basic extraction")
             return {"keywords": prompt.split()[:10], "industry": "Technology"}
         
         extraction_prompt = f"""
-        Extract structured targeting criteria from this user prompt:
+        You are analyzing a lead generation request. The user has provided a prompt that may include:
+        1. A short instruction like "Generate leads as explained in the knowledge base"
+        2. Attached research guide documents that explain targeting criteria
         
-        "{prompt}"
+        Your task: Extract SPECIFIC, ACTIONABLE search criteria that can be used for Google searches.
         
-        Return a JSON object with:
-        - keywords: List of key search terms
-        - industry: Primary industry focus
-        - location: Geographic focus (if mentioned)
-        - company_size: Company size preferences (if mentioned)
-        - funding_stage: Funding stage preferences (if mentioned)
-        - technology: Technology stack mentions (if any)
-        - pain_points: Pain points or challenges mentioned
+        User Input:
+        {prompt}
         
-        Be specific and actionable for web search.
+        Return a JSON object with these fields:
+        {{
+          "keywords": ["list", "of", "specific", "search", "terms"],
+          "industry": "specific industry if mentioned",
+          "location": "geographic focus if mentioned",
+          "company_size": "size preference if mentioned",
+          "funding_stage": "funding stage if mentioned",
+          "technology": "tech stack if mentioned",
+          "pain_points": ["specific", "pain", "points"],
+          "search_queries": ["ready-to-use Google search query 1", "query 2", "query 3"]
+        }}
+        
+        IMPORTANT:
+        - Read the ENTIRE research guide document if provided
+        - Extract keywords that would work well in Google searches
+        - If the guide mentions specific company types, industries, or criteria, include those
+        - Generate 5-10 ready-to-use Google search queries based on the criteria
+        - Be specific and actionable - these will be used directly for web searches
+        
+        Example: If guide says "target SaaS companies with 50-200 employees", include:
+        - keywords: ["SaaS", "software", "cloud", "subscription"]
+        - search_queries: ["SaaS companies 50-200 employees", "growing software companies", "cloud software startups"]
         """
         
         try:
@@ -86,23 +110,29 @@ class RealResearchEngine:
                 response = await self.openai_client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": extraction_prompt}],
-                    temperature=0.3
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
                 )
                 result = json.loads(response.choices[0].message.content)
             elif self.claude_client:
                 response = await self.claude_client.messages.create(
                     model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
+                    max_tokens=2000,
                     messages=[{"role": "user", "content": extraction_prompt}]
                 )
                 result = json.loads(response.content[0].text)
             
-            logger.info(f"Extracted targeting criteria: {result}")
+            logger.info(f"✅ Extracted targeting criteria from research guide:")
+            logger.info(f"   Keywords: {result.get('keywords', [])}")
+            logger.info(f"   Industry: {result.get('industry', 'N/A')}")
+            logger.info(f"   Generated search queries: {len(result.get('search_queries', []))}")
             return result
             
         except Exception as e:
             logger.error(f"Error extracting targeting criteria: {e}")
-            return {"keywords": prompt.split()[:10], "industry": "Technology"}
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {"keywords": prompt.split()[:10], "industry": "Technology", "search_queries": []}
     
     async def search_companies(self, criteria: Dict[str, Any], target_count: int) -> List[Dict[str, Any]]:
         """Search for companies using Google Custom Search API with rich targeting"""
@@ -178,18 +208,28 @@ class RealResearchEngine:
             search_queries.append(f"{keyword} company directory")
             search_queries.append(f"best {keyword} companies")
         
-        # NEW: If no queries generated from structured fields, use original prompt + keywords
-        if len(search_queries) == 0 and original_prompt:
-            logger.warning(f"⚠️ No queries from structured fields, falling back to PROMPT-BASED search")
-            # Use prompt directly
-            search_queries.append(original_prompt)
-            # Add keyword variations if available
-            if keywords:
+        # NEW: If no queries from structured fields, use AI-generated queries or fallback to prompt
+        if len(search_queries) == 0:
+            logger.warning(f"⚠️ No queries from structured fields, checking for AI-generated queries")
+            
+            # First priority: Use AI-generated search queries from research guide analysis
+            ai_queries = criteria.get("search_queries", [])
+            if ai_queries:
+                logger.info(f"✅ Using {len(ai_queries)} AI-generated search queries from research guide")
+                search_queries.extend(ai_queries)
+            
+            # Second priority: Build queries from extracted keywords
+            if not search_queries and keywords:
+                logger.info(f"📝 Building queries from {len(keywords)} extracted keywords")
                 for keyword in keywords[:5]:
                     search_queries.append(f"{keyword} companies")
                     search_queries.append(f"{keyword} startups")
-            else:
-                # Extract words from prompt as fallback
+            
+            # Third priority: Use original prompt directly
+            if not search_queries and original_prompt:
+                logger.info(f"📝 Using original prompt as search query")
+                search_queries.append(original_prompt)
+                # Extract words from prompt as additional queries
                 prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
                 for word in prompt_words:
                     search_queries.append(f"{word} companies")
