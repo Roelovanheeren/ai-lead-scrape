@@ -97,6 +97,9 @@ class RealResearchEngine:
         
         IMPORTANT:
         - Read the ENTIRE research guide document if provided
+        - Pay CLOSE ATTENTION to whether the guide wants:
+          * DEVELOPERS (companies that build their own projects) OR
+          * INVESTORS/LPs (companies that invest in other people's projects)
         - Extract keywords that would work well in Google searches
         - If the guide mentions specific company types, industries, or criteria, include those
         - Generate 5-10 ready-to-use Google search queries based on the criteria
@@ -105,6 +108,17 @@ class RealResearchEngine:
         - Include company names, "top companies", "leading firms", "portfolio", "about us" to find real companies
         
         Examples:
+        
+        If guide says "target institutional investors that invest as LPs in real estate", include:
+        - keywords: ["institutional investor", "limited partner", "LP investor", "real estate fund", "REIT", "private equity"]
+        - industry: "Real Estate Investment Management"
+        - search_queries: [
+            "institutional real estate investors LP",
+            "real estate private equity funds",
+            "multifamily investment firms",
+            "build-to-rent LP investors",
+            "opportunity zone fund managers"
+          ]
         
         If guide says "target SaaS companies with 50-200 employees", include:
         - keywords: ["SaaS", "software", "cloud", "subscription"]
@@ -115,15 +129,14 @@ class RealResearchEngine:
             "enterprise SaaS vendors portfolio"
           ]
         
-        If guide says "contact VP of Development or Project Managers at real estate companies", include:
-        - target_roles: ["VP of Development", "Vice President of Development", "Project Manager", "Development Manager"]
+        If guide says "contact executives at real estate DEVELOPMENT companies" (not investors), include:
+        - target_roles: ["CEO", "President", "Managing Director"]
         - target_department: "executive"
         - industry: "Real Estate Development"
         - search_queries: [
             "top real estate development firms",
             "leading commercial real estate developers",
-            "real estate investment companies portfolio",
-            "major residential developers about us"
+            "residential property developers"
           ]
         
         BAD QUERIES (these find job boards/articles):
@@ -134,6 +147,19 @@ class RealResearchEngine:
         - "top real estate development firms USA"
         - "leading commercial developers portfolio"
         - "major real estate investment companies"
+        
+        CRITICAL DISTINCTION - Investors vs Developers:
+        If the guide mentions "LP investors", "institutional investors", "fund managers", "capital partners":
+        - Industry should be: "Real Estate Investment Management" or "Institutional Real Estate Investment"
+        - Keywords should include: "LP", "limited partner", "investor", "fund", "REIT", "private equity"
+        - Search for: investment firms, fund managers, REITs, private equity firms
+        - Target roles: "Investment Director", "Portfolio Manager", "Fund Manager", "Investment Committee"
+        
+        If the guide mentions "developers", "development companies", "builders":
+        - Industry should be: "Real Estate Development"
+        - Keywords should include: "developer", "development", "builder", "construction"
+        - Search for: development companies, construction firms, home builders
+        - Target roles: "VP of Development", "Project Manager", "Development Director"
         """
         
         try:
