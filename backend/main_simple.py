@@ -75,17 +75,30 @@ except ImportError as e:
 # from routes.ai_chat_routes import router as ai_chat_router
 
 # In-memory job storage (use database in production)
+# WARNING: Jobs will be lost if container restarts!
 job_storage = {}
+container_start_time = datetime.utcnow().isoformat()
+logger.info(f"🚀 Container started at: {container_start_time}")
+logger.info(f"⚠️ Using in-memory job storage - jobs will be lost on restart!")
 
 async def process_job_background(job_id: str, job_data: dict):
     """Process a job in the background with REAL web scraping and research"""
     try:
         logger.info(f"="*80)
-        logger.info(f"Starting REAL background processing for job {job_id}")
+        logger.info(f"🚀 BACKGROUND TASK STARTED for job {job_id}")
+        logger.info(f"🚀 This task is running in the background and will perform REAL web scraping")
         logger.info(f"REAL_RESEARCH_AVAILABLE: {REAL_RESEARCH_AVAILABLE}")
         logger.info(f"Job data keys: {list(job_data.keys())}")
         logger.info(f"Prompt: {job_data.get('prompt', 'N/A')}")
         logger.info(f"Target count: {job_data.get('target_count', 'N/A')}")
+        
+        # Verify job exists in storage
+        if job_id not in job_storage:
+            logger.error(f"❌ CRITICAL: Job {job_id} not in storage at background task start!")
+            logger.error(f"❌ Available jobs: {list(job_storage.keys())}")
+            return
+        
+        logger.info(f"✅ Job {job_id} verified in storage")
         logger.info(f"="*80)
         
         # Update job status to processing
@@ -277,14 +290,31 @@ async def process_job_background(job_id: str, job_data: dict):
                 logger.error(f"Failed to export to Google Sheets: {e}")
         
     except Exception as e:
-        logger.error(f"Error processing job {job_id}: {str(e)}")
-        job_storage[job_id] = {
-            "id": job_id,
-            "status": "failed",
-            "message": f"Job failed: {str(e)}",
-            "error": str(e),
-            "created_at": datetime.utcnow().isoformat()
-        }
+        logger.error(f"="*80)
+        logger.error(f"❌ CRITICAL ERROR in background job processing for {job_id}")
+        logger.error(f"❌ Error: {str(e)}")
+        import traceback
+        logger.error(f"❌ Full traceback:")
+        logger.error(traceback.format_exc())
+        logger.error(f"="*80)
+        
+        # Update job storage with failure
+        if job_id in job_storage:
+            job_storage[job_id].update({
+                "status": "failed",
+                "message": f"Job failed: {str(e)}",
+                "error": str(e),
+                "failed_at": datetime.utcnow().isoformat()
+            })
+        else:
+            logger.error(f"❌ Cannot update job {job_id} - not in storage!")
+            job_storage[job_id] = {
+                "id": job_id,
+                "status": "failed",
+                "message": f"Job failed: {str(e)}",
+                "error": str(e),
+                "created_at": datetime.utcnow().isoformat()
+            }
 
 async def _fallback_simulation(job_id: str, job_data: dict):
     """Fallback to simulation if real research fails"""
@@ -574,6 +604,7 @@ async def get_job(job_id: str):
     """Get job status"""
     try:
         logger.info(f"🔍 Getting job status for job_id: {job_id}")
+        logger.info(f"🔍 Container start time: {container_start_time}")
         logger.info(f"🔍 Available jobs in storage: {list(job_storage.keys())}")
         logger.info(f"🔍 Total jobs in storage: {len(job_storage)}")
         
@@ -585,10 +616,13 @@ async def get_job(job_id: str):
         else:
             logger.warning(f"❌ Job {job_id} not found in storage")
             logger.warning(f"❌ Available job IDs: {list(job_storage.keys())}")
+            logger.warning(f"❌ This may be due to container restart after job creation")
             return {
                 "id": job_id,
                 "status": "not_found",
-                "message": "Job not found"
+                "message": "Job not found. The container may have restarted after job creation.",
+                "container_start_time": container_start_time,
+                "note": "Jobs are stored in memory and lost on restart. Consider using persistent storage."
             }
     except Exception as e:
         logger.error(f"❌ Error getting job {job_id}: {str(e)}")
@@ -608,6 +642,19 @@ async def list_jobs():
         "jobs": jobs,
         "total": len(jobs),
         "message": f"Found {len(jobs)} jobs"
+    }
+
+@app.get("/debug/container-info")
+async def container_info():
+    """Debug endpoint showing container state"""
+    return {
+        "container_start_time": container_start_time,
+        "current_time": datetime.utcnow().isoformat(),
+        "uptime_seconds": (datetime.utcnow() - datetime.fromisoformat(container_start_time)).total_seconds(),
+        "jobs_in_memory": len(job_storage),
+        "job_ids": list(job_storage.keys()),
+        "real_research_available": REAL_RESEARCH_AVAILABLE,
+        "warning": "Jobs stored in memory will be lost on container restart"
     }
 
 @app.get("/test")
