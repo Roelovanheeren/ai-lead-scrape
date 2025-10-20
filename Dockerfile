@@ -1,5 +1,6 @@
 # Multi-stage build for Railway
-FROM node:18-alpine AS frontend-builder
+# Use official Node image instead of alpine (more reliable on Railway)
+FROM node:18 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
