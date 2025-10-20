@@ -118,13 +118,52 @@ def extract_company_name_from_prompt(prompt: str) -> Optional[str]:
     return None
 
 
-async def find_specific_company(company_name: str) -> Optional[Dict[str, Any]]:
-    """Search for a specific company by name"""
+async def find_specific_company(company_name: str, original_prompt: str = "") -> Optional[Dict[str, Any]]:
+    """Search for a specific company by name with context from original prompt
+    
+    Args:
+        company_name: The extracted company name (e.g., "CenterSquare")
+        original_prompt: The full user prompt with context (e.g., "Find leads at CenterSquare real estate investment")
+    """
     logger.info(f"🔍 Searching for specific company: {company_name}")
     
-    # Try to search Google for the company
+    # Try to search Google for the company with industry/context disambiguation
     try:
-        search_query = f'"{company_name}" official website'
+        # Extract industry/business context keywords from original prompt to help disambiguate
+        context_keywords = []
+        
+        if original_prompt:
+            prompt_lower = original_prompt.lower()
+            
+            # Investment/finance related keywords
+            if any(word in prompt_lower for word in ['investment', 'investor', 'investing', 'capital', 'fund', 'private equity', 'reit']):
+                context_keywords.append('investment management')
+            
+            # Real estate keywords
+            if any(word in prompt_lower for word in ['real estate', 'property', 'realty', 'multifamily', 'residential', 'commercial']):
+                context_keywords.append('real estate')
+            
+            # Development keywords (but not if it's clearly an investor request)
+            if 'development' in prompt_lower and not any(word in prompt_lower for word in ['investor', 'investing', 'lp', 'limited partner']):
+                context_keywords.append('development')
+            
+            # Technology keywords
+            if any(word in prompt_lower for word in ['tech', 'technology', 'software', 'saas', 'ai', 'startup']):
+                context_keywords.append('technology')
+            
+            logger.info(f"🎯 Extracted context keywords from prompt: {context_keywords}")
+        
+        # Build search query with context for disambiguation
+        if context_keywords:
+            # Use context keywords to help Google find the right company
+            context_str = ' '.join(context_keywords)
+            search_query = f'"{company_name}" {context_str} official website'
+            logger.info(f"🔎 Using contextual search: {search_query}")
+        else:
+            # Fallback to basic search
+            search_query = f'"{company_name}" official website'
+            logger.info(f"🔎 Using basic search: {search_query}")
+        
         companies = await search_companies({"prompt": search_query}, 1)
         
         if companies and len(companies) > 0:
@@ -189,8 +228,8 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 "message": f"Searching for {specific_company_name}..."
             })
             
-            # Find the specific company
-            company = await find_specific_company(specific_company_name)
+            # Find the specific company (pass original prompt for context)
+            company = await find_specific_company(specific_company_name, prompt)
             
             if not company:
                 job_storage[job_id].update({
