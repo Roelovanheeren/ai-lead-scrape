@@ -611,12 +611,33 @@ class RealResearchEngine:
         if targeting_criteria:
             # Check for specific role targeting in research guide
             target_roles = targeting_criteria.get("target_roles", [])
-            target_departments = targeting_criteria.get("target_department", "executive")
+            requested_department = targeting_criteria.get("target_department", "executive")
+            
+            # Map custom department names to Hunter.io's valid departments
+            # Hunter.io valid departments: executive, it, sales, marketing, finance, communication, hr, legal
+            department_mapping = {
+                "investment": "finance",  # Investment roles are usually in finance dept
+                "investments": "finance",
+                "portfolio": "finance",
+                "fund": "finance",
+                "acquisition": "finance",
+                "acquisitions": "finance",
+                "executive": "executive",
+                "engineering": "it",
+                "sales": "sales",
+                "marketing": "marketing",
+                "finance": "finance",
+                "hr": "hr",
+                "legal": "legal"
+            }
+            
+            # Map to valid Hunter.io department
+            target_departments = department_mapping.get(requested_department.lower(), "executive")
             
             if target_roles:
                 logger.info(f"🎯 Targeting specific roles from research guide: {target_roles}")
-            if target_departments != "executive":
-                logger.info(f"🎯 Targeting specific department: {target_departments}")
+            if requested_department != "executive":
+                logger.info(f"🎯 Targeting specific department: {requested_department} → mapped to Hunter.io: {target_departments}")
         
         # Use Hunter.io to find real contacts
         try:
