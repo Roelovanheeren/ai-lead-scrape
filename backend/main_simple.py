@@ -71,25 +71,49 @@ container_start_time = datetime.utcnow().isoformat()
 
 
 def extract_company_name_from_prompt(prompt: str) -> Optional[str]:
-    """Extract company name if user asks for specific company"""
-    prompt_lower = prompt.lower()
+    """Extract company name if user asks for specific company
     
-    # Patterns like "find leads at X", "contacts from X", "employees at X"
-    patterns = [
-        r'(?:find|get|search).*?(?:at|from|for)\s+([A-Z][A-Za-z\s&]+?)(?:\s|$|,|\.|!)',
-        r'(?:contacts?|leads?|employees?)\s+(?:at|from|for)\s+([A-Z][A-Za-z\s&]+?)(?:\s|$|,|\.|!)',
-        r'(?:company|firm|organization):\s*([A-Z][A-Za-z\s&]+?)(?:\s|$|,|\.|!)',
-    ]
+    Examples:
+    - "Find leads at Center Square Investment" -> "Center Square Investment"
+    - "Get contacts from CenterSquare" -> "CenterSquare"
+    - "leads from the investment firm Center Square" -> "Center Square"
+    """
     
-    for pattern in patterns:
-        match = re.search(pattern, prompt, re.IGNORECASE)
+    # Pattern 1: "at/from/for [Company Name]" (greedy capture until common stop words)
+    # Matches: "leads at CenterSquare Investment Management" or "from Center Square"
+    pattern1 = r'(?:at|from|for)\s+(?:the\s+)?(?:investment\s+)?(?:firm\s+)?([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*)*(?:\s+(?:Investment|Management|Capital|Partners|Group|Corp|Inc|LLC))*)'
+    
+    # Pattern 2: Capitalized company names (handles "CenterSquare Investment" or "Center Square Investment")
+    # Matches both single words like "CenterSquare" and multi-word like "Center Square Investment Management"
+    pattern2 = r'\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*(?:\s+(?:Investment|Management|Capital|Partners|Group|Corp|Inc|LLC))+)\b'
+    
+    # Pattern 3: Single capitalized word followed by business suffix (CenterSquare Investment)
+    pattern3 = r'\b([A-Z][a-z]*[A-Z][a-z]*(?:\s+(?:Investment|Management|Capital|Partners|Group))*)\b'
+    
+    # Try patterns in order
+    for pattern in [pattern1, pattern2, pattern3]:
+        match = re.search(pattern, prompt)
         if match:
             company_name = match.group(1).strip()
-            # Clean up common words
-            company_name = re.sub(r'\s+(the|and|or|inc|llc|ltd|corp|corporation)$', '', company_name, flags=re.IGNORECASE)
-            if len(company_name) > 2:
+            
+            # Clean up trailing common words that aren't part of company name
+            company_name = re.sub(r'\s+(?:in|the|from|at|for|and|or)$', '', company_name, flags=re.IGNORECASE)
+            
+            # Ignore very short matches or common false positives
+            ignore_list = ['the', 'investment', 'firm', 'company', 'center', 'square']
+            if len(company_name) >= 5 and company_name.lower() not in ignore_list:
                 logger.info(f"🎯 Detected specific company request: '{company_name}'")
                 return company_name
+    
+    # Fallback: if prompt is just a capitalized company name with no other words
+    # Matches: "CenterSquare" or "Center Square"
+    if len(prompt.split()) <= 4:  # Short prompt, might be just company name
+        words = prompt.split()
+        capitalized_words = [w for w in words if w[0].isupper() and len(w) > 3]
+        if len(capitalized_words) >= 1:
+            company_name = ' '.join(capitalized_words)
+            logger.info(f"🎯 Detected simple company name: '{company_name}'")
+            return company_name
     
     return None
 
