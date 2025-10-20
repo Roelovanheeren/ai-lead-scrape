@@ -341,6 +341,16 @@ async def health():
         "active_jobs": len(job_storage)
     }
 
+@app.get("/health-check")
+async def health_check():
+    """Health check for Railway"""
+    return {
+        "status": "healthy",
+        "real_research_available": REAL_RESEARCH_AVAILABLE,
+        "container_start_time": container_start_time,
+        "active_jobs": len(job_storage)
+    }
+
 # Serve static files
 app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
 
