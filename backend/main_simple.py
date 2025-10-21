@@ -334,22 +334,47 @@ async def process_job_real_only(job_id: str, job_data: dict):
                     logger.info(f"Job {job_id}: ✅ Found {len(contacts)} contacts at {company_name}")
                     all_leads.extend(contacts)
                 else:
-                    logger.warning(f"Job {job_id}: ⚠️ No contacts found at {company_name}")
+                    logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
+                    logger.error(f"  Possible reasons:")
+                    logger.error(f"    - Website has no /team or /leadership page")
+                    logger.error(f"    - Team page uses non-standard HTML structure")
+                    logger.error(f"    - Website blocks web scraping")
+                    logger.error(f"    - Website requires JavaScript to load team info")
                     
             except Exception as e:
-                logger.error(f"Job {job_id}: ❌ Error finding contacts at {company_name}: {e}")
+                logger.error(f"Job {job_id}: ❌ EXCEPTION finding contacts at {company_name}: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Traceback:\n{traceback.format_exc()}")
                 continue
         
         # Final result
         if len(all_leads) == 0:
+            # Build detailed error message explaining WHY no contacts found
+            error_details = []
+            error_details.append(f"Searched {len(companies)} companies but found 0 contacts.")
+            error_details.append("\nPossible reasons:")
+            error_details.append("1. Companies don't have public team/leadership pages")
+            error_details.append("2. Team pages use non-standard HTML (JavaScript-heavy sites)")
+            error_details.append("3. Websites block web scraping")
+            error_details.append("4. Wrong companies found by Google search (articles/blogs)")
+            error_details.append("\nCompanies searched:")
+            for i, company in enumerate(companies[:10], 1):  # Show first 10
+                error_details.append(f"  {i}. {company.get('name')} ({company.get('domain')})")
+            if len(companies) > 10:
+                error_details.append(f"  ... and {len(companies) - 10} more")
+            
+            detailed_message = "\n".join(error_details)
+            
             job_storage[job_id].update({
-                "status": "completed",
+                "status": "failed",
                 "progress": 100,
-                "message": f"⚠️ Search completed but no contacts found at {len(companies)} companies. Hunter.io may have limited data for these domains.",
+                "message": f"❌ No contacts found at {len(companies)} companies",
+                "error": detailed_message,
                 "leads": [],
                 "companies_searched": len(companies)
             })
-            logger.warning(f"Job {job_id}: Completed but no contacts found")
+            logger.error(f"Job {job_id}: FAILED - No contacts found")
+            logger.error(detailed_message)
         else:
             job_storage[job_id].update({
                 "status": "completed",

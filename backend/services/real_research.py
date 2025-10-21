@@ -406,8 +406,10 @@ class RealResearchEngine:
                         domain = self._extract_domain(link)
                         
                         # Filter out non-company results
-                        if self._is_likely_article_or_blog(title, link, domain):
-                            logger.info(f"  ⏭️  Skipping article/blog: {title[:60]}...")
+                        filter_result = self._is_likely_article_or_blog(title, link, domain)
+                        if filter_result:
+                            logger.warning(f"  🚫 FILTERED OUT (reason: {filter_result}): {title[:80]}")
+                            logger.warning(f"     Domain: {domain}, URL: {link[:80]}")
                             continue
                         
                         company = {
@@ -429,86 +431,97 @@ class RealResearchEngine:
             logger.error(f"Error searching Google: {e}")
             return []
     
-    def _is_likely_article_or_blog(self, title: str, url: str, domain: str) -> bool:
+    def _is_likely_article_or_blog(self, title: str, url: str, domain: str) -> Optional[str]:
         """Filter out articles, blogs, and other non-company results
         
-        Returns True if this looks like an article/blog (should be skipped)
-        Returns False if this looks like a real company website (should be kept)
+        Returns reason string if this should be filtered (article/blog)
+        Returns None if this looks like a real company website (should be kept)
         """
         title_lower = title.lower()
         url_lower = url.lower()
         
         # Common article/blog indicators in title
         article_patterns = [
-            r'\?',  # Questions (e.g., "How much do B2B companies...")
-            r'\bhow\s+to\b',
-            r'\btop\s+\d+',
-            r'\bbest\s+\d+',
-            r'\bguide\b',
-            r'\btips\b',
-            r'\bwhy\s+',
-            r'\bwhat\s+',
-            r'\bultimate\b',
-            r'\bcomplete\b',
-            r'\bbeginner',
-            r'\bcourse\b',
-            r'\blesson\b',
-            r'\btutorial\b'
+            (r'\?', "Contains question mark (article)"),
+            (r'\bhow\s+to\b', "How-to guide"),
+            (r'\btop\s+\d+', "Top N list article"),
+            (r'\bbest\s+\d+', "Best of list article"),
+            (r'\bguide\b', "Guide article"),
+            (r'\btips\b', "Tips article"),
+            (r'\bwhy\s+', "Why question article"),
+            (r'\bwhat\s+', "What question article"),
+            (r'\bfind\s+', "Find X article"),
+            (r'\bultimate\b', "Ultimate guide"),
+            (r'\bcomplete\b', "Complete guide"),
+            (r'\bbeginner', "Beginner guide"),
+            (r'\bcourse\b', "Course/tutorial"),
+            (r'\blesson\b', "Lesson/tutorial"),
+            (r'\btutorial\b', "Tutorial")
         ]
         
-        for pattern in article_patterns:
+        for pattern, reason in article_patterns:
             if re.search(pattern, title_lower):
-                return True  # This is an article
+                return reason
         
         # URL path indicators (blog posts, articles)
         article_url_patterns = [
-            '/blog/',
-            '/article/',
-            '/post/',
-            '/news/',
-            '/resources/',
-            '/learn/',
-            '/guide/',
-            '/insights/',
-            '/knowledge-base/',
-            '/content/',
-            '/stories/'
+            ('/blog/', "Blog post URL"),
+            ('/article/', "Article URL"),
+            ('/post/', "Post URL"),
+            ('/news/', "News article URL"),
+            ('/resources/', "Resource page URL"),
+            ('/learn/', "Learning resource URL"),
+            ('/guide/', "Guide URL"),
+            ('/insights/', "Insights article URL"),
+            ('/knowledge-base/', "Knowledge base article URL"),
+            ('/content/', "Content page URL"),
+            ('/stories/', "Story article URL"),
+            ('/wiki/', "Wiki page URL"),
+            ('/docs/', "Documentation URL"),
+            ('/help/', "Help article URL")
         ]
         
-        for pattern in article_url_patterns:
+        for pattern, reason in article_url_patterns:
             if pattern in url_lower:
-                return True  # This is a blog/article
+                return reason
         
         # Domains that are content/article sites (not companies)
         article_domains = [
-            'medium.com',
-            'forbes.com',
-            'techcrunch.com',
-            'venturebeat.com',
-            'businessinsider.com',
-            'entrepreneur.com',
-            'inc.com',
-            'fastcompany.com',
-            'wired.com',
-            'mashable.com',
-            'reddit.com',
-            'quora.com',
-            'stackoverflow.com',
-            'wikipedia.org',
-            'youtube.com',
-            'linkedin.com/pulse',
-            'hubspot.com/blog'
+            ('medium.com', "Medium blog"),
+            ('forbes.com', "Forbes article"),
+            ('techcrunch.com', "TechCrunch article"),
+            ('venturebeat.com', "VentureBeat article"),
+            ('businessinsider.com', "Business Insider article"),
+            ('entrepreneur.com', "Entrepreneur article"),
+            ('inc.com', "Inc. article"),
+            ('fastcompany.com', "Fast Company article"),
+            ('wired.com', "Wired article"),
+            ('mashable.com', "Mashable article"),
+            ('reddit.com', "Reddit post"),
+            ('quora.com', "Quora question"),
+            ('stackoverflow.com', "Stack Overflow"),
+            ('wikipedia.org', "Wikipedia page"),
+            ('youtube.com', "YouTube video"),
+            ('linkedin.com/pulse', "LinkedIn Pulse article"),
+            ('hubspot.com/blog', "HubSpot blog"),
+            ('knowledge.hubspot.com', "HubSpot knowledge base"),
+            ('community.hubspot.com', "HubSpot community"),
+            ('.gov', "Government site"),
+            ('sba.gov', "SBA government site"),
+            ('epa.gov', "EPA government site"),
+            ('amazon.com', "Amazon product/book"),
+            ('namelix.com', "Namelix tool")
         ]
         
-        for article_domain in article_domains:
+        for article_domain, reason in article_domains:
             if article_domain in domain:
-                return True  # This is a content site
+                return reason
         
         # If title is very long, it's probably an article
-        if len(title) > 80:
-            return True
+        if len(title) > 100:
+            return "Title too long (likely article)"
         
-        return False  # Looks like a real company website
+        return None  # Looks like a real company website
     
     def _extract_company_name(self, title: str) -> str:
         """Extract company name from search result title"""
