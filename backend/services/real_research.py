@@ -401,15 +401,25 @@ class RealResearchEngine:
                 
                 for item in data.get("items", []):
                     try:
+                        title = item.get("title", "")
+                        link = item.get("link", "")
+                        domain = self._extract_domain(link)
+                        
+                        # Filter out non-company results
+                        if self._is_likely_article_or_blog(title, link, domain):
+                            logger.info(f"  ⏭️  Skipping article/blog: {title[:60]}...")
+                            continue
+                        
                         company = {
-                            "name": self._extract_company_name(item.get("title", "")),
-                            "website": item.get("link", ""),
+                            "name": self._extract_company_name(title),
+                            "website": link,
                             "description": item.get("snippet", ""),
-                            "domain": self._extract_domain(item.get("link", "")),
+                            "domain": domain,
                             "source": "Google Search",
                             "search_query": query
                         }
                         companies.append(company)
+                        logger.info(f"  ✅ Added company: {company['name']} ({domain})")
                     except Exception as e:
                         logger.error(f"Error processing search result: {e}")
                         continue
@@ -418,6 +428,87 @@ class RealResearchEngine:
         except Exception as e:
             logger.error(f"Error searching Google: {e}")
             return []
+    
+    def _is_likely_article_or_blog(self, title: str, url: str, domain: str) -> bool:
+        """Filter out articles, blogs, and other non-company results
+        
+        Returns True if this looks like an article/blog (should be skipped)
+        Returns False if this looks like a real company website (should be kept)
+        """
+        title_lower = title.lower()
+        url_lower = url.lower()
+        
+        # Common article/blog indicators in title
+        article_patterns = [
+            r'\?',  # Questions (e.g., "How much do B2B companies...")
+            r'\bhow\s+to\b',
+            r'\btop\s+\d+',
+            r'\bbest\s+\d+',
+            r'\bguide\b',
+            r'\btips\b',
+            r'\bwhy\s+',
+            r'\bwhat\s+',
+            r'\bultimate\b',
+            r'\bcomplete\b',
+            r'\bbeginner',
+            r'\bcourse\b',
+            r'\blesson\b',
+            r'\btutorial\b'
+        ]
+        
+        for pattern in article_patterns:
+            if re.search(pattern, title_lower):
+                return True  # This is an article
+        
+        # URL path indicators (blog posts, articles)
+        article_url_patterns = [
+            '/blog/',
+            '/article/',
+            '/post/',
+            '/news/',
+            '/resources/',
+            '/learn/',
+            '/guide/',
+            '/insights/',
+            '/knowledge-base/',
+            '/content/',
+            '/stories/'
+        ]
+        
+        for pattern in article_url_patterns:
+            if pattern in url_lower:
+                return True  # This is a blog/article
+        
+        # Domains that are content/article sites (not companies)
+        article_domains = [
+            'medium.com',
+            'forbes.com',
+            'techcrunch.com',
+            'venturebeat.com',
+            'businessinsider.com',
+            'entrepreneur.com',
+            'inc.com',
+            'fastcompany.com',
+            'wired.com',
+            'mashable.com',
+            'reddit.com',
+            'quora.com',
+            'stackoverflow.com',
+            'wikipedia.org',
+            'youtube.com',
+            'linkedin.com/pulse',
+            'hubspot.com/blog'
+        ]
+        
+        for article_domain in article_domains:
+            if article_domain in domain:
+                return True  # This is a content site
+        
+        # If title is very long, it's probably an article
+        if len(title) > 80:
+            return True
+        
+        return False  # Looks like a real company website
     
     def _extract_company_name(self, title: str) -> str:
         """Extract company name from search result title"""
