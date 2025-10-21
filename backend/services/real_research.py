@@ -68,8 +68,61 @@ class RealResearchEngine:
         - How to exclude certain companies
         """
         if not self.openai_client and not self.claude_client:
-            logger.warning("No AI client available, using basic extraction")
-            return {"keywords": prompt.split()[:10], "industry": "Technology"}
+            logger.error("❌ NO AI CLIENT AVAILABLE (OpenAI/Claude API key not set)")
+            logger.error("Using rule-based extraction fallback")
+            logger.error("⚠️ Results will be lower quality without AI")
+            logger.error("💡 Set OPENAI_API_KEY or CLAUDE_API_KEY environment variable for better results")
+            
+            # Smart fallback: detect investment vs development from keywords
+            prompt_lower = prompt.lower()
+            
+            # Check if this is about INVESTORS (LP, fund, capital partners)
+            is_investor_query = any(word in prompt_lower for word in [
+                'investor', 'invest', 'lp', 'limited partner', 'fund', 'capital',
+                'reit', 'private equity', 'institutional', 'portfolio'
+            ])
+            
+            # Check if this is about DEVELOPERS (build, develop, construction)
+            is_developer_query = any(word in prompt_lower for word in [
+                'developer', 'development', 'builder', 'construction', 'contractor'
+            ]) and not is_investor_query  # Don't match if also investor query
+            
+            if is_investor_query:
+                logger.info("🎯 Detected INVESTOR query (fallback mode)")
+                return {
+                    "keywords": ["investor", "investment", "fund", "capital", "LP", "institutional"],
+                    "industry": "Real Estate Investment Management",
+                    "search_queries": [
+                        "top real estate investment firms",
+                        "institutional real estate investors",
+                        "real estate private equity funds",
+                        "REIT companies",
+                        "multifamily investment firms USA"
+                    ],
+                    "target_roles": ["Investment Director", "Portfolio Manager", "Fund Manager"],
+                    "target_department": "finance"
+                }
+            elif is_developer_query:
+                logger.info("🎯 Detected DEVELOPER query (fallback mode)")
+                return {
+                    "keywords": ["developer", "development", "builder", "construction"],
+                    "industry": "Real Estate Development",
+                    "search_queries": [
+                        "top real estate development firms",
+                        "leading commercial real estate developers",
+                        "multifamily developers USA",
+                        "residential property developers"
+                    ],
+                    "target_roles": ["VP Development", "Development Director", "CEO"],
+                    "target_department": "executive"
+                }
+            else:
+                logger.warning("⚠️ Could not detect query type, using generic fallback")
+                return {
+                    "keywords": prompt.split()[:10],
+                    "industry": "Technology",
+                    "search_queries": [f"{' '.join(prompt.split()[:5])} companies"]
+                }
         
         extraction_prompt = f"""
         You are analyzing a lead generation request. The user has provided a prompt that may include:
