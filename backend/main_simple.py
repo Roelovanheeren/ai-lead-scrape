@@ -228,12 +228,39 @@ async def process_job_real_only(job_id: str, job_data: dict):
         logger.info(f"Job {job_id}: Target count: {target_count}")
         logger.info(f"="*80)
         
+        # ALWAYS extract research guide and targeting criteria FIRST
+        # This is important even for specific company requests to know what roles to target
+        job_storage[job_id].update({
+            "progress": 5,
+            "message": "Analyzing research guide..."
+        })
+        
+        # Extract research guide text from knowledge base
+        research_guide_text = ""
+        for doc in job_data.get("knowledge_base_documents", []):
+            text = doc.get("extractedText") or doc.get("content", "")
+            if text:
+                research_guide_text += f"\n\n{text}"
+        
+        # Extract targeting criteria from research guide + prompt
+        prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{research_guide_text}" if research_guide_text else prompt
+        targeting_criteria = await extract_targeting_criteria(prompt_with_guide)
+        
+        # Store targeting criteria for later use when finding contacts
+        job_data['targeting_criteria'] = targeting_criteria
+        
+        logger.info(f"Job {job_id}: 📋 Extracted targeting criteria:")
+        logger.info(f"  Industry: {targeting_criteria.get('industry', 'N/A')}")
+        logger.info(f"  Target Roles: {targeting_criteria.get('target_roles', [])}")
+        logger.info(f"  Target Department: {targeting_criteria.get('target_department', 'executive')}")
+        
         # Check if user is asking for a specific company
         specific_company_name = extract_company_name_from_prompt(prompt)
         
         if specific_company_name:
-            # USER ASKED FOR SPECIFIC COMPANY
+            # USER ASKED FOR SPECIFIC COMPANY (but still use research guide for role targeting)
             logger.info(f"Job {job_id}: 🎯 SPECIFIC COMPANY REQUEST: {specific_company_name}")
+            logger.info(f"Job {job_id}: 📚 Will use research guide to target correct roles at this company")
             
             job_storage[job_id].update({
                 "progress": 20,
@@ -259,27 +286,11 @@ async def process_job_real_only(job_id: str, job_data: dict):
             logger.info(f"Job {job_id}: 📋 GENERAL SEARCH using research guide")
             
             job_storage[job_id].update({
-                "progress": 10,
-                "message": "Analyzing research guide..."
-            })
-            
-            # Extract research guide text
-            research_guide_text = ""
-            for doc in job_data.get("knowledge_base_documents", []):
-                text = doc.get("extractedText") or doc.get("content", "")
-                if text:
-                    research_guide_text += f"\n\n{text}"
-            
-            # Extract targeting criteria
-            prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{research_guide_text}" if research_guide_text else prompt
-            targeting_criteria = await extract_targeting_criteria(prompt_with_guide)
-            
-            job_storage[job_id].update({
                 "progress": 20,
                 "message": "Searching for companies..."
             })
             
-            # Search for companies
+            # Search for companies using targeting criteria
             companies = await search_companies(targeting_criteria, target_count)
             
             if not companies or len(companies) == 0:
