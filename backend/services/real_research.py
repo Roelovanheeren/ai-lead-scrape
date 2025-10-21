@@ -676,7 +676,7 @@ class RealResearchEngine:
             return {"analysis": "AI analysis failed"}
     
     async def find_company_contacts(self, company: Dict[str, Any], targeting_criteria: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """Find REAL contacts and decision makers for a company using Hunter.io
+        """Find REAL contacts and decision makers for a company using WEB SCRAPING
         
         Args:
             company: Company information (name, domain, etc.)
@@ -685,156 +685,53 @@ class RealResearchEngine:
         """
         company_name = company.get("name", "Unknown Company")
         domain = company.get("domain", "company.com")
+        website = company.get("website", f"https://{domain}")
         
-        logger.info(f"🔍 Finding REAL contacts for {company_name} at {domain}")
+        logger.info(f"🔍 Finding REAL contacts for {company_name} at {website}")
         
-        # Import Hunter.io client
+        # Import web scraper
         try:
-            from services.hunter_client import hunter_client
+            from services.web_scraper import scrape_company_contacts
         except ImportError:
-            logger.error("❌ Hunter.io client not available")
+            logger.error("❌ Web scraper not available")
             return []
         
         # Extract targeting preferences from criteria
-        target_roles = None
-        target_departments = "executive"  # Default to executives
+        target_roles = []
         
         if targeting_criteria:
             # Check for specific role targeting in research guide
             target_roles = targeting_criteria.get("target_roles", [])
-            requested_department = targeting_criteria.get("target_department", "executive")
-            
-            # Map custom department names to Hunter.io's valid departments
-            # Hunter.io valid departments: executive, it, sales, marketing, finance, communication, hr, legal
-            department_mapping = {
-                "investment": "finance",  # Investment roles are usually in finance dept
-                "investments": "finance",
-                "portfolio": "finance",
-                "fund": "finance",
-                "acquisition": "finance",
-                "acquisitions": "finance",
-                "executive": "executive",
-                "engineering": "it",
-                "sales": "sales",
-                "marketing": "marketing",
-                "finance": "finance",
-                "hr": "hr",
-                "legal": "legal"
-            }
-            
-            # Map to valid Hunter.io department
-            target_departments = department_mapping.get(requested_department.lower(), "executive")
             
             if target_roles:
                 logger.info(f"🎯 Targeting specific roles from research guide: {target_roles}")
-            if requested_department != "executive":
-                logger.info(f"🎯 Targeting specific department: {requested_department} → mapped to Hunter.io: {target_departments}")
         
-        # Use Hunter.io to find real contacts
+        # Use WEB SCRAPING to find real contacts
         try:
-            logger.info(f"📧 Searching Hunter.io for contacts at {domain}...")
-            hunter_results = await hunter_client.find_emails_at_domain(
-                domain=domain,
-                department=target_departments
+            logger.info(f"🌐 Scraping website for contacts: {website}")
+            scraped_contacts = await scrape_company_contacts(
+                company_name=company_name,
+                website=website,
+                target_roles=target_roles
             )
             
-            if not hunter_results:
-                logger.warning(f"⚠️ No contacts found via Hunter.io for {domain}")
+            if not scraped_contacts:
+                logger.warning(f"⚠️ No contacts found via web scraping for {website}")
                 return []
             
-            logger.info(f"✅ Found {len(hunter_results)} REAL contacts via Hunter.io")
+            logger.info(f"✅ Found {len(scraped_contacts)} REAL contacts via web scraping")
             
-            # Filter contacts based on targeting criteria if specified
-            filtered_results = hunter_results
-            if target_roles:
-                logger.info(f"🔍 Filtering contacts by target roles: {target_roles}")
-                filtered_results = []
-                
-                # Extract SENIORITY and FUNCTION separately for smarter matching
-                # E.g., "VP of Development" → seniority: ["vp", "vice president"], function: ["development"]
-                seniority_keywords = set()
-                function_keywords = set()
-                
-                for role in target_roles:
-                    role_lower = role.lower()
-                    
-                    # Extract seniority level keywords
-                    if "vp" in role_lower or "vice president" in role_lower:
-                        seniority_keywords.update(["vp", "vice president", "v.p.", "v.p"])
-                    if "svp" in role_lower or "senior vice president" in role_lower:
-                        seniority_keywords.update(["svp", "senior vice president", "sr. vice president", "sr vp"])
-                    if "director" in role_lower:
-                        seniority_keywords.update(["director", "dir.", "dir"])
-                    if "head" in role_lower:
-                        seniority_keywords.add("head")
-                    if "chief" in role_lower:
-                        seniority_keywords.add("chief")
-                    if "manager" in role_lower:
-                        seniority_keywords.update(["manager", "mgr"])
-                    
-                    # Extract function/department keywords (the IMPORTANT ones)
-                    if "development" in role_lower or "developer" in role_lower:
-                        function_keywords.update(["development", "developer", "developing"])
-                    if "project" in role_lower:
-                        function_keywords.update(["project", "projects"])
-                    if "construction" in role_lower:
-                        function_keywords.update(["construction", "construction mgmt"])
-                    if "acquisitions" in role_lower or "acquisition" in role_lower:
-                        function_keywords.update(["acquisitions", "acquisition"])
-                    if "investment" in role_lower:
-                        function_keywords.update(["investment", "investments"])
-                    if "operations" in role_lower:
-                        function_keywords.update(["operations", "ops"])
-                    if "portfolio" in role_lower:
-                        function_keywords.add("portfolio")
-                
-                logger.info(f"   🎯 Seniority keywords: {seniority_keywords}")
-                logger.info(f"   🎯 Function keywords: {function_keywords}")
-                
-                for contact in hunter_results:
-                    position = (contact.get("position", "") or "").lower()
-                    
-                    # Exact match check (highest priority)
-                    if any(role.lower() in position for role in target_roles):
-                        filtered_results.append(contact)
-                        logger.info(f"   ✅ Matched (exact): {contact.get('position')}")
-                        continue
-                    
-                    # Smart keyword matching: require BOTH seniority AND function match
-                    # This prevents "VP of Construction" from matching "VP of Development"
-                    position_clean = position.replace("-", " ").replace(".", " ")
-                    
-                    # Check if position contains seniority keywords
-                    has_seniority = any(s in position_clean for s in seniority_keywords)
-                    
-                    # Check if position contains function keywords
-                    has_function = any(f in position_clean for f in function_keywords)
-                    
-                    # RULE: Accept if BOTH seniority AND function match
-                    # OR if we have no specific function keywords (match any senior role)
-                    if has_seniority and (has_function or not function_keywords):
-                        matched_seniority = [s for s in seniority_keywords if s in position_clean]
-                        matched_function = [f for f in function_keywords if f in position_clean]
-                        filtered_results.append(contact)
-                        logger.info(f"   ✅ Matched: {contact.get('position')}")
-                        logger.info(f"      Seniority: {matched_seniority}, Function: {matched_function or 'any'}")
-                    else:
-                        logger.info(f"   ❌ Skipped: {contact.get('position')} (seniority: {has_seniority}, function: {has_function})")
-                
-                logger.info(f"✅ Filtered to {len(filtered_results)} contacts matching target roles")
-                
-                # If filtering removed everyone, use all results as fallback
-                if not filtered_results:
-                    logger.warning(f"⚠️ No contacts matched target roles, using all {len(hunter_results)} contacts")
-                    filtered_results = hunter_results
-            
-            # Convert Hunter.io results to our contact format
+            # Web scraper already filters by target_roles if provided
+            # Convert scraped contacts to standardized format
             contacts = []
-            for i, hunter_data in enumerate(filtered_results[:5], 1):  # Limit to 5 contacts
-                # Build full name
-                first_name = hunter_data.get("first_name", "")
-                last_name = hunter_data.get("last_name", "")
-                full_name = f"{first_name} {last_name}".strip() or "Unknown"
+            for i, scraped_contact in enumerate(scraped_contacts[:10], 1):  # Limit to 10 contacts
+                # Scraper returns: contact_name, role, linkedin, email, confidence
+                full_name = scraped_contact.get("contact_name", "Unknown")
+                
+                # Split name into first/last (basic)
+                name_parts = full_name.split()
+                first_name = name_parts[0] if len(name_parts) > 0 else ""
+                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
                 
                 contact = {
                     "id": f"contact_{domain.replace('.', '_')}_{i}",
@@ -842,19 +739,19 @@ class RealResearchEngine:
                     "contact_name": full_name,
                     "first_name": first_name,
                     "last_name": last_name,
-                    "email": hunter_data.get("email", ""),
-                    "phone": hunter_data.get("phone_number", ""),
-                    "linkedin": hunter_data.get("linkedin", ""),
-                    "twitter": hunter_data.get("twitter", ""),
-                    "website": company.get("website", ""),
+                    "email": scraped_contact.get("email", ""),
+                    "phone": "",
+                    "linkedin": scraped_contact.get("linkedin", ""),
+                    "twitter": "",
+                    "website": website,
                     "industry": company.get("industry", ""),
                     "location": company.get("location", ""),
-                    "role": hunter_data.get("position", "Decision Maker"),
-                    "department": hunter_data.get("department", ""),
-                    "seniority": hunter_data.get("seniority", "Senior"),
-                    "confidence": hunter_data.get("confidence", 0.8),
-                    "verification_status": hunter_data.get("verification_status", ""),
-                    "source": "Hunter.io",
+                    "role": scraped_contact.get("role", "Team Member"),
+                    "department": "",
+                    "seniority": "Senior" if any(word in scraped_contact.get("role", "").lower() for word in ["director", "vp", "chief", "head", "manager"]) else "Mid",
+                    "confidence": scraped_contact.get("confidence", 0.7),
+                    "verification_status": "scraped",
+                    "source": "Web Scraping",
                     "created_at": datetime.utcnow().isoformat(),
                     "research_data": company.get("research_data", {}),
                     "targeting_match": bool(target_roles)  # Flag if we used role targeting
@@ -862,8 +759,10 @@ class RealResearchEngine:
                 contacts.append(contact)
                 
                 logger.info(f"   [{i}] {full_name} - {contact['role']}")
-                logger.info(f"       Email: {contact['email']}")
-                logger.info(f"       Confidence: {contact['confidence']:.2f}")
+                if contact['linkedin']:
+                    logger.info(f"       🔗 LinkedIn: {contact['linkedin'][:50]}...")
+                if contact['email']:
+                    logger.info(f"       📧 Email: {contact['email']}")
             
             logger.info(f"✅ Returning {len(contacts)} REAL contacts for {company_name}")
             return contacts
