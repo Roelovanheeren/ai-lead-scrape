@@ -131,20 +131,28 @@ async def find_specific_company(company_name: str, original_prompt: str = "") ->
     try:
         # Extract industry/business context keywords from original prompt to help disambiguate
         context_keywords = []
+        exclusion_keywords = []
         
         if original_prompt:
             prompt_lower = original_prompt.lower()
             
-            # Investment/finance related keywords
-            if any(word in prompt_lower for word in ['investment', 'investor', 'investing', 'capital', 'fund', 'private equity', 'reit']):
+            # Investment/finance related keywords (HIGH PRIORITY for disambiguation)
+            if any(word in prompt_lower for word in ['investment', 'investor', 'investing', 'capital', 'fund', 'private equity', 'reit', 'portfolio', 'lp', 'limited partner']):
                 context_keywords.append('investment management')
+                context_keywords.append('institutional investor')
+                # Exclude data centers and news sites
+                exclusion_keywords.extend(['-data center', '-datacenter', '-news', '-media'])
             
             # Real estate keywords
-            if any(word in prompt_lower for word in ['real estate', 'property', 'realty', 'multifamily', 'residential', 'commercial']):
+            if any(word in prompt_lower for word in ['real estate', 'property', 'realty', 'multifamily', 'residential', 'commercial', 'btr', 'build to rent']):
                 context_keywords.append('real estate')
+                # If combined with investment, be even more specific
+                if any(word in prompt_lower for word in ['investment', 'investor', 'fund']):
+                    context_keywords.append('REIT')
+                    exclusion_keywords.extend(['-construction', '-developer', '-builder'])
             
             # Development keywords (but not if it's clearly an investor request)
-            if 'development' in prompt_lower and not any(word in prompt_lower for word in ['investor', 'investing', 'lp', 'limited partner']):
+            if 'development' in prompt_lower and not any(word in prompt_lower for word in ['investor', 'investing', 'lp', 'limited partner', 'fund']):
                 context_keywords.append('development')
             
             # Technology keywords
@@ -152,13 +160,17 @@ async def find_specific_company(company_name: str, original_prompt: str = "") ->
                 context_keywords.append('technology')
             
             logger.info(f"🎯 Extracted context keywords from prompt: {context_keywords}")
+            if exclusion_keywords:
+                logger.info(f"🚫 Adding exclusions to avoid wrong companies: {exclusion_keywords}")
         
         # Build search query with context for disambiguation
         if context_keywords:
             # Use context keywords to help Google find the right company
+            # Place industry context BEFORE company name for better Google ranking
             context_str = ' '.join(context_keywords)
-            search_query = f'"{company_name}" {context_str} official website'
-            logger.info(f"🔎 Using contextual search: {search_query}")
+            exclusion_str = ' '.join(exclusion_keywords) if exclusion_keywords else ''
+            search_query = f'{context_str} "{company_name}" official website {exclusion_str}'
+            logger.info(f"🔎 Using enhanced contextual search: {search_query}")
         else:
             # Fallback to basic search
             search_query = f'"{company_name}" official website'
