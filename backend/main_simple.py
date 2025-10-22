@@ -313,18 +313,31 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
         logger.info(f"Job {job_id}: ✅ Initial discovery returned {len(companies)} companies")
 
-        # Find contacts at each company
-        # Ensure companies look valid before continuing
-        valid_companies = [c for c in companies if c.get('name') and c.get('domain')]
+        primary_candidates = [c for c in companies if c.get('name') and c.get('domain')]
 
-        logger.info(f"Job {job_id}: ✅ {len(valid_companies)} companies remain after filtering")
+        fallback_candidates: List[Dict[str, Any]] = []
+        seen_domains = {c.get('domain') for c in primary_candidates if c.get('domain')}
 
-        if not valid_companies:
+        for entry in discovery_diagnostics:
+            raw = entry.get("raw_result")
+            if not raw:
+                continue
+            domain = raw.get("domain")
+            if not domain or domain in seen_domains:
+                continue
+            fallback_entry = dict(raw)
+            fallback_entry.setdefault("discovery_score", entry.get("score", 0))
+            fallback_entry.setdefault("discovery_reasons", entry.get("reasons", []))
+            fallback_candidates.append(fallback_entry)
+            seen_domains.add(domain)
+
+        total_available = len(primary_candidates) + len(fallback_candidates)
+        if total_available == 0:
             job_storage[job_id].update({
                 "status": "failed",
                 "progress": 100,
                 "message": "❌ No qualified companies found after filtering",
-                "error": "All search results were filtered out as articles/directories",
+                "error": "All discovery results were filtered out as articles/directories",
                 "leads": [],
                 "companies_searched": 0
             })
@@ -333,49 +346,61 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
         job_storage[job_id].update({
             "progress": 25,
-            "message": f"Evaluating {len(valid_companies)} company candidates"
+            "message": f"Evaluating up to {total_available} company candidates"
         })
 
-        all_leads = []
-        skip_reasons = []
+        all_leads: List[Dict[str, Any]] = []
+        skip_reasons: List[str] = []
+        processed_domains: set[str] = set()
+        companies_evaluated = 0
 
-        total_companies = len(valid_companies)
+        def _next_candidate() -> Optional[Dict[str, Any]]:
+            if primary_candidates:
+                return primary_candidates.pop(0)
+            if fallback_candidates:
+                return fallback_candidates.pop(0)
+            return None
 
-        for i, company in enumerate(valid_companies):
-            company_name = company.get('name', 'Unknown')
-            domain = company.get('domain', '')
+        while len(all_leads) < target_count:
+            candidate = _next_candidate()
+            if not candidate:
+                break
 
-            logger.info(f"Job {job_id}: [{i+1}/{total_companies}] Evaluating {company_name} ({domain})")
+            domain = candidate.get('domain') or ''
+            if domain in processed_domains:
+                continue
+            processed_domains.add(domain)
+            companies_evaluated += 1
+
+            company_name = candidate.get('name', 'Unknown')
+
+            logger.info(
+                f"Job {job_id}: [{companies_evaluated}/{total_available}] Evaluating {company_name} ({domain})"
+            )
 
             job_storage[job_id].update({
-                "progress": 25 + int(((i + 1) / total_companies) * 50),
-                "message": f"Evaluating company {i+1} of {total_companies}"
+                "progress": 25 + int((companies_evaluated / max(total_available, 1)) * 50),
+                "message": f"Evaluating company {companies_evaluated} of {total_available}"
             })
 
             try:
-                # Get targeting criteria if available
                 targeting_criteria = job_data.get('targeting_criteria', {})
-                
-                # Find contacts
-                contacts = await find_company_contacts(company, targeting_criteria)
-                
+                contacts = await find_company_contacts(candidate, targeting_criteria)
+
                 if contacts:
                     logger.info(f"Job {job_id}: ✅ Found {len(contacts)} contacts at {company_name}")
                     all_leads.extend(contacts)
                 else:
                     logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
                     skip_reasons.append(f"No qualifying contacts at {company_name} ({domain})")
-                    logger.error(f"  Possible reasons:")
-                    logger.error(f"    - Website has no /team or /leadership page")
-                    logger.error(f"    - Team page uses non-standard HTML structure")
-                    logger.error(f"    - Website blocks web scraping")
-                    logger.error(f"    - Website requires JavaScript to load team info")
-                    
             except Exception as e:
-                logger.error(f"Job {job_id}: ❌ EXCEPTION finding contacts at {company_name}: {type(e).__name__}: {e}")
+                logger.error(
+                    f"Job {job_id}: ❌ EXCEPTION finding contacts at {company_name}: {type(e).__name__}: {e}"
+                )
                 import traceback
                 logger.error(f"Traceback:\n{traceback.format_exc()}")
-                continue
+
+        total_companies = companies_evaluated
         
         # Final result
         if len(all_leads) == 0:
@@ -415,6 +440,9 @@ async def process_job_real_only(job_id: str, job_data: dict):
             logger.error(f"Job {job_id}: FAILED - No contacts found")
             logger.error(detailed_message)
         else:
+            if len(all_leads) > target_count:
+                all_leads = all_leads[:target_count]
+
             job_storage[job_id].update({
                 "status": "completed",
                 "progress": 100,

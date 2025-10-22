@@ -183,6 +183,7 @@ async def discover_investor_companies(
                 "score": score,
                 "reasons": reasons,
                 "snippet": result.get("description"),
+                "raw_result": result,
             }
         )
         if score > 0:
@@ -203,4 +204,4 @@ async def discover_investor_companies(
     qualified.sort(key=lambda r: r.get("discovery_score", 0), reverse=True)
     diagnostics.sort(key=lambda r: r.get("score", 0), reverse=True)
 
-    return qualified[: max(target_count, 10)], diagnostics[:50]
+    return qualified, diagnostics
