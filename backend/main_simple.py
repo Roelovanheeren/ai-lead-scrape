@@ -7,12 +7,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import uuid
 import os
 import asyncio
 import re
+import base64
+import io
+import zipfile
+from xml.etree import ElementTree as ET
+
+PDF_EXTRACTION_AVAILABLE = False
+try:
+    from pdfminer.high_level import extract_text as pdf_extract_text
+
+    PDF_EXTRACTION_AVAILABLE = True
+except Exception as pdf_import_error:  # pragma: no cover - logging only
+    pdf_extract_text = None
+    logging.getLogger(__name__).warning(
+        "PDF extraction library not available: %s", pdf_import_error
+    )
 
 # Configure logging
 logging.basicConfig(
@@ -48,6 +63,19 @@ class JobCreate(BaseModel):
     knowledge_base_documents: List[Dict[str, Any]] = []
     exclude_existing_leads: bool = False
     existing_leads: List[Any] = []
+
+
+class KnowledgeBaseExtractRequest(BaseModel):
+    name: str
+    type: str
+    data: str  # Base64 encoded file contents
+
+
+class KnowledgeBaseExtractResponse(BaseModel):
+    text: str
+    summary: str
+    category: str
+    word_count: int
 
 # FastAPI app
 app = FastAPI(
@@ -116,6 +144,142 @@ def extract_company_name_from_prompt(prompt: str) -> Optional[str]:
             return company_name
     
     return None
+
+
+def _decode_base64(data: str) -> bytes:
+    """Decode base64 data with graceful error handling."""
+
+    try:
+        return base64.b64decode(data, validate=True)
+    except Exception:
+        # Accept non-padded strings by adding padding if needed
+        padding_needed = len(data) % 4
+        if padding_needed:
+            data += "=" * (4 - padding_needed)
+        return base64.b64decode(data)
+
+
+def _extract_text_from_pdf(file_bytes: bytes) -> str:
+    if not PDF_EXTRACTION_AVAILABLE or pdf_extract_text is None:
+        raise HTTPException(
+            status_code=400,
+            detail="PDF extraction is not available on this server. Please install pdfminer.six.",
+        )
+
+    with io.BytesIO(file_bytes) as buffer:
+        return pdf_extract_text(buffer) or ""
+
+
+def _extract_text_from_docx(file_bytes: bytes) -> str:
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as docx_zip:
+            xml_data = docx_zip.read("word/document.xml")
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="DOCX file is missing document.xml content.",
+        )
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid DOCX file provided.",
+        )
+
+    tree = ET.fromstring(xml_data)
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    text_runs = []
+
+    for node in tree.iter():
+        if node.tag == f"{namespace}t" and node.text:
+            text_runs.append(node.text)
+
+    return "\n".join(text_runs)
+
+
+def _extract_text_from_plain(file_bytes: bytes, encoding: str = "utf-8") -> str:
+    try:
+        return file_bytes.decode(encoding)
+    except UnicodeDecodeError:
+        # Attempt with latin-1 as fallback to preserve bytes
+        return file_bytes.decode("latin-1")
+
+
+def _infer_category(name: str, text: str) -> str:
+    normalized_name = name.lower()
+    normalized_text = text.lower()
+
+    research_keywords = [
+        "research",
+        "icp",
+        "ideal customer",
+        "target",
+        "persona",
+        "prospect",
+    ]
+    outreach_keywords = [
+        "outreach",
+        "email",
+        "script",
+        "message",
+        "copy",
+        "sequence",
+    ]
+
+    def contains_keywords(target: str, keywords: List[str]) -> bool:
+        return any(keyword in target for keyword in keywords)
+
+    if contains_keywords(normalized_name, research_keywords) or contains_keywords(
+        normalized_text, research_keywords
+    ):
+        return "research_guide"
+
+    if contains_keywords(normalized_name, outreach_keywords) or contains_keywords(
+        normalized_text, outreach_keywords
+    ):
+        return "outreach_playbook"
+
+    if any(word in normalized_name for word in ["persona", "profile", "audience"]):
+        return "audience_profile"
+
+    return "other"
+
+
+def _summarize_text(text: str, max_sentences: int = 3, max_chars: int = 400) -> str:
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        return ""
+
+    sentence_endings = re.compile(r"(?<=[.!?])\s+")
+    sentences = sentence_endings.split(cleaned)
+    summary_sentences = sentences[:max_sentences]
+    summary = " ".join(summary_sentences)
+
+    if len(summary) > max_chars:
+        summary = summary[: max_chars - 3].rstrip() + "..."
+
+    return summary
+
+
+def _extract_text_from_document(name: str, mime_type: str, file_bytes: bytes) -> Tuple[str, str, str]:
+    mime_type = (mime_type or "").lower()
+    name_lower = name.lower()
+
+    if mime_type in {"text/plain", "text/markdown", "application/json", "application/xml"}:
+        text = _extract_text_from_plain(file_bytes)
+    elif mime_type == "application/pdf" or name_lower.endswith(".pdf"):
+        text = _extract_text_from_pdf(file_bytes)
+    elif mime_type in {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    } or name_lower.endswith(".docx"):
+        text = _extract_text_from_docx(file_bytes)
+    else:
+        # Fallback: try UTF-8 decode
+        text = _extract_text_from_plain(file_bytes)
+
+    summary = _summarize_text(text)
+    category = _infer_category(name, text)
+    return text, summary, category
 
 
 async def find_specific_company(company_name: str, original_prompt: str = "") -> Optional[Dict[str, Any]]:
@@ -236,12 +400,42 @@ async def process_job_real_only(job_id: str, job_data: dict):
         })
         
         # Extract research guide text from knowledge base
-        research_guide_text = ""
-        for doc in job_data.get("knowledge_base_documents", []):
-            text = doc.get("extractedText") or doc.get("content", "")
-            if text:
-                research_guide_text += f"\n\n{text}"
-        
+        knowledge_base_docs = job_data.get("knowledge_base_documents", [])
+        knowledge_sections = {
+            "research_guide": [],
+            "outreach_playbook": [],
+            "audience_profile": [],
+            "other": [],
+        }
+
+        for doc in knowledge_base_docs:
+            raw_text = (doc.get("extractedText") or doc.get("content") or "").strip()
+            if not raw_text:
+                continue
+
+            category = doc.get("category") or _infer_category(doc.get("name", ""), raw_text)
+            if category not in knowledge_sections:
+                category = "other"
+
+            knowledge_sections[category].append(raw_text)
+            doc["category"] = category  # Persist inferred category for downstream usage
+
+        # Store flattened summary for downstream consumers (outreach generation, QA, exports)
+        knowledge_base_summary = {
+            key: "\n\n".join(value)
+            for key, value in knowledge_sections.items()
+            if value
+        }
+        combined_knowledge_text = "\n\n".join(knowledge_base_summary.values())
+
+        job_data["knowledge_base_summary"] = knowledge_base_summary
+
+        research_guide_text = (
+            knowledge_base_summary.get("research_guide")
+            or knowledge_base_summary.get("audience_profile")
+            or combined_knowledge_text
+        )
+
         # Extract targeting criteria from research guide + prompt
         prompt_with_guide = f"{prompt}\n\nResearch Guide:\n{research_guide_text}" if research_guide_text else prompt
         targeting_criteria = await extract_targeting_criteria(prompt_with_guide)
@@ -332,6 +526,27 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 
                 if contacts:
                     logger.info(f"Job {job_id}: ✅ Found {len(contacts)} contacts at {company_name}")
+                    knowledge_summary = job_data.get("knowledge_base_summary", {})
+                    for contact in contacts:
+                        if knowledge_summary.get("research_guide"):
+                            contact.setdefault(
+                                "research_guide", knowledge_summary["research_guide"]
+                            )
+                        if knowledge_summary.get("outreach_playbook"):
+                            contact.setdefault(
+                                "outreach_instructions",
+                                knowledge_summary["outreach_playbook"],
+                            )
+                        if knowledge_summary.get("audience_profile"):
+                            contact.setdefault(
+                                "audience_profile",
+                                knowledge_summary["audience_profile"],
+                            )
+                        if combined_knowledge_text:
+                            contact.setdefault(
+                                "knowledge_base_context", combined_knowledge_text
+                            )
+
                     all_leads.extend(contacts)
                 else:
                     logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
@@ -398,6 +613,27 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
 
 # API Endpoints
+
+
+@app.post("/knowledge-base/extract", response_model=KnowledgeBaseExtractResponse)
+async def extract_knowledge_base_document(payload: KnowledgeBaseExtractRequest):
+    """Extract raw text and metadata from an uploaded knowledge base document."""
+
+    if not payload.data:
+        raise HTTPException(status_code=400, detail="No document data provided")
+
+    file_bytes = _decode_base64(payload.data)
+    text, summary, category = _extract_text_from_document(payload.name, payload.type, file_bytes)
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Document contained no extractable text")
+
+    return KnowledgeBaseExtractResponse(
+        text=text.strip(),
+        summary=summary,
+        category=category,
+        word_count=len(text.split()),
+    )
 
 @app.get("/")
 async def root():

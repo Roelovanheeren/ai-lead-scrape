@@ -853,25 +853,42 @@ class RealResearchEngine:
         role = lead.get("role", "decision maker")
         research_data = lead.get("research_data", {})
         
-        outreach_prompt = f"""
-        Generate personalized outreach messages for:
-        
-        Contact: {contact_name} ({role}) at {company}
-        Company Research: {json.dumps(research_data, indent=2)}
-        
-        Create:
-        1. LinkedIn connection message (max 300 characters)
-        2. Email subject line (max 50 characters)
-        3. Email body (max 200 words)
-        
-        Make it personal, relevant, and valuable. Reference specific insights from the research.
-        Format as JSON:
-        {{
-            "linkedin_message": "...",
-            "email_subject": "...",
-            "email_body": "..."
-        }}
-        """
+        research_guide = lead.get("research_guide", "")
+        outreach_instructions = lead.get("outreach_instructions", "")
+        audience_profile = lead.get("audience_profile", "")
+
+        prompt_sections = [
+            "Generate personalized outreach messages for:",
+            f"Contact: {contact_name} ({role}) at {company}",
+            f"Company Research: {json.dumps(research_data, indent=2)}",
+        ]
+
+        if research_guide:
+            prompt_sections.append(f"Research Guide Instructions:\n{research_guide}")
+
+        if audience_profile:
+            prompt_sections.append(f"Audience Profile:\n{audience_profile}")
+
+        if outreach_instructions:
+            prompt_sections.append(f"Outreach Playbook:\n{outreach_instructions}")
+
+        prompt_sections.extend(
+            [
+                "Create:",
+                "1. LinkedIn connection message (max 300 characters)",
+                "2. Email subject line (max 50 characters)",
+                "3. Email body (max 200 words)",
+                "Make it personal, relevant, and valuable. Reference specific insights from the research and honor the outreach playbook.",
+                "Format as JSON:",
+                "{",
+                '    "linkedin_message": "...",',
+                '    "email_subject": "...",',
+                '    "email_body": "..."',
+                "}",
+            ]
+        )
+
+        outreach_prompt = "\n".join(prompt_sections)
         
         try:
             if self.openai_client:

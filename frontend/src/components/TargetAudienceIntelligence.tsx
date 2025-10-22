@@ -16,16 +16,25 @@ import {
   Link,
   Database,
   RotateCcw,
-  Edit,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Loader2,
+  AlertCircle
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { googleSheetsService, GoogleSheetData } from '@/lib/googleSheets'
-import { storageService, ConnectedSheet, UploadedDocument as StorageUploadedDocument, AudienceProfile as StorageAudienceProfile, ChatMessage as StorageChatMessage } from '@/lib/storage'
+import {
+  storageService,
+  ConnectedSheet,
+  UploadedDocument as StorageUploadedDocument,
+  AudienceProfile as StorageAudienceProfile,
+  ChatMessage as StorageChatMessage,
+  KnowledgeBaseCategory
+} from '@/lib/storage'
+import { apiClient } from '@/lib/api'
 
 // UploadedDocument interface is now imported from storage service
 
@@ -113,6 +122,8 @@ export default function TargetAudienceIntelligence() {
   const [isMappingHeaders, setIsMappingHeaders] = useState(false)
   const [activeConnectedSheet, setActiveConnectedSheet] = useState<ConnectedSheet | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isProcessingKnowledgeDocs, setIsProcessingKnowledgeDocs] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
 
   // Handle URL parameters for OAuth callback
   useEffect(() => {
@@ -169,29 +180,133 @@ export default function TargetAudienceIntelligence() {
     loadPersistedData()
   }, [])
 
+  const generateDocumentId = () => {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID()
+    }
+    return Math.random().toString(36).slice(2, 11)
+  }
+
+  const fileToBase64 = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    const chunkSize = 0x8000
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize)
+      binary += String.fromCharCode(...chunk)
+    }
+
+    return btoa(binary)
+  }
+
+  const updateStoredDocument = async (documentId: string, updates: Partial<StorageUploadedDocument>) => {
+    try {
+      const updatedDocument = await storageService.updateUploadedDocument(documentId, updates)
+      if (updatedDocument) {
+        setUploadedDocs(prev => prev.map(doc => (doc.id === documentId ? updatedDocument : doc)))
+      }
+    } catch (error) {
+      console.error('Failed to update uploaded document:', error)
+    }
+  }
+
+  const ingestKnowledgeDocument = async (file: File) => {
+    const placeholder: StorageUploadedDocument = {
+      id: generateDocumentId(),
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      content: '',
+      uploadedAt: new Date().toISOString(),
+      processed: false
+    }
+
+    setUploadedDocs(prev => [...prev, placeholder])
+
+    try {
+      await storageService.addUploadedDocument(placeholder)
+    } catch (error) {
+      console.error('Failed to persist placeholder document:', error)
+    }
+
+    try {
+      const base64 = await fileToBase64(file)
+      const extraction = await apiClient.extractKnowledgeBaseDocument({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        data: base64
+      })
+
+      const normalizedCategory = ['research_guide', 'outreach_playbook', 'audience_profile', 'other'].includes(extraction.category)
+        ? (extraction.category as KnowledgeBaseCategory)
+        : 'other'
+
+      const processedDocument: StorageUploadedDocument = {
+        ...placeholder,
+        processed: true,
+        content: extraction.text,
+        extractedText: extraction.text,
+        summary: extraction.summary,
+        category: normalizedCategory,
+        wordCount: extraction.word_count,
+        error: undefined
+      }
+
+      await updateStoredDocument(placeholder.id, processedDocument)
+    } catch (error) {
+      console.error('Failed to process knowledge document:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to extract document content'
+
+      await updateStoredDocument(placeholder.id, {
+        ...placeholder,
+        processed: false,
+        error: errorMessage
+      })
+    }
+  }
+
+  const handleKnowledgeFiles = async (files: File[]) => {
+    if (!files.length) return
+
+    setIsProcessingKnowledgeDocs(true)
+    try {
+      for (const file of files) {
+        await ingestKnowledgeDocument(file)
+      }
+    } finally {
+      setIsProcessingKnowledgeDocs(false)
+    }
+  }
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (!files) return
+    if (!files || files.length === 0) return
 
-    for (const file of Array.from(files)) {
-      const newDoc: StorageUploadedDocument = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        content: '', // We'll extract text content later
-        uploadedAt: new Date().toISOString(),
-        processed: false
-      }
+    await handleKnowledgeFiles(Array.from(files))
+    event.target.value = ''
+  }
 
-      // Save to persistent storage
-      try {
-        await storageService.addUploadedDocument(newDoc)
-        setUploadedDocs(prev => [...prev, newDoc])
-      } catch (error) {
-        console.error('Failed to save uploaded document:', error)
-      }
+  const handleKnowledgeDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragActive(false)
+    const files = Array.from(event.dataTransfer.files || [])
+    if (files.length === 0) return
+
+    await handleKnowledgeFiles(files)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!isDragActive) {
+      setIsDragActive(true)
     }
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragActive(false)
   }
 
   const removeDocument = async (id: string) => {
@@ -633,6 +748,19 @@ export default function TargetAudienceIntelligence() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  const formatCategoryLabel = (category?: KnowledgeBaseCategory) => {
+    switch (category) {
+      case 'research_guide':
+        return 'Research Guide'
+      case 'outreach_playbook':
+        return 'Outreach Playbook'
+      case 'audience_profile':
+        return 'Audience Profile'
+      default:
+        return 'General Context'
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -703,7 +831,14 @@ export default function TargetAudienceIntelligence() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="border-2 border-dashed border-brand/30 rounded-xl p-8 text-center hover:border-brand/50 transition-colors">
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                    isDragActive ? 'border-brand/60 bg-card/40' : 'border-brand/30 hover:border-brand/50'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleKnowledgeDrop}
+                >
                   <Upload className="h-12 w-12 mx-auto text-brand mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Upload Your Documents</h3>
                   <p className="text-muted-foreground mb-4">
@@ -724,32 +859,71 @@ export default function TargetAudienceIntelligence() {
                     onChange={handleFileUpload}
                     className="hidden"
                   />
+                  {isProcessingKnowledgeDocs && (
+                    <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing documents...
+                    </div>
+                  )}
                 </div>
 
                 {uploadedDocs.length > 0 && (
                   <div className="space-y-3">
                     <h4 className="font-semibold">Uploaded Documents ({uploadedDocs.length})</h4>
-                    {uploadedDocs.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-3 bg-card/50 rounded-lg border border-white/10">
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-5 w-5 text-brand" />
-                          <div>
-                            <p className="font-medium">{doc.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}
-                            </p>
+                    {uploadedDocs.map((doc) => {
+                      const statusLabel = doc.error ? 'Needs attention' : doc.processed ? 'Ready' : 'Processing'
+                      const statusStyle = doc.error
+                        ? 'bg-destructive/20 text-destructive border-destructive/30'
+                        : doc.processed
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-200 border-amber-500/30'
+
+                      return (
+                        <div key={doc.id} className="flex flex-col gap-3 p-4 bg-card/50 rounded-lg border border-white/10 md:flex-row md:items-start md:justify-between">
+                          <div className="flex items-start gap-3 flex-1">
+                            <FileText className="h-5 w-5 text-brand mt-1" />
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">{doc.name}</p>
+                                <Badge variant="outline" className={`text-xs ${statusStyle}`}>
+                                  {statusLabel}
+                                </Badge>
+                                {doc.category && (
+                                  <Badge variant="outline" className="text-xs capitalize border-brand/40 text-brand/90">
+                                    {formatCategoryLabel(doc.category)}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                                {doc.wordCount ? ` • ${doc.wordCount.toLocaleString()} words` : ''}
+                              </p>
+                              {doc.summary && (
+                                <p className="text-sm text-muted-foreground line-clamp-3">
+                                  {doc.summary}
+                                </p>
+                              )}
+                              {doc.error && (
+                                <p className="text-sm text-destructive flex items-center gap-2">
+                                  <AlertCircle className="h-4 w-4" />
+                                  {doc.error}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 self-end md:self-start">
+                            {!doc.processed && !doc.error && (
+                              <Button variant="ghost" size="icon" disabled>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>
