@@ -13,6 +13,7 @@ import uuid
 import os
 import asyncio
 import re
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -461,8 +462,18 @@ async def health_check():
         "active_jobs": len(job_storage)
     }
 
-# Serve static files
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
+# Serve static files for built frontend
+app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
+app.mount("/static", StaticFiles(directory="frontend/dist"), name="static_root")
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """Return the SPA index for any unmatched frontend route."""
+    index_path = Path("frontend/dist/index.html")
+    if index_path.exists():
+        return FileResponse(index_path)
+    raise HTTPException(status_code=404, detail="Frontend build not found")
 
 
 if __name__ == "__main__":
