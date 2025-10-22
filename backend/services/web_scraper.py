@@ -205,13 +205,13 @@ class WebContactScraper:
             
             if name_elem:
                 name = name_elem.get_text(strip=True)
-            
+
             # Extract title/role (usually in span, p, or div with class "title", "role", "position")
             title = None
             title_elem = (
                 container.find(['span', 'p', 'div'], class_=re.compile(r'(title|role|position|job)', re.I))
             )
-            
+
             if title_elem:
                 title = title_elem.get_text(strip=True)
             
@@ -228,7 +228,7 @@ class WebContactScraper:
                 email = email_link.get('href').replace('mailto:', '')
             
             # Only return if we have at least a name
-            if name and len(name) > 2 and len(name) < 100:
+            if name and self._is_valid_person_name(name):
                 contact = {
                     "contact_name": name,
                     "role": title or "Team Member",
@@ -250,7 +250,7 @@ class WebContactScraper:
         except Exception as e:
             logger.error(f"❌ Error extracting contact from container: {e}")
             return None
-    
+
     def _extract_from_linkedin_links(self, soup, company_name: str) -> List[Dict[str, Any]]:
         """Extract contacts by finding LinkedIn profile links on the page"""
         contacts = []
@@ -277,7 +277,7 @@ class WebContactScraper:
                         title_elem = parent.find(['span', 'p'], class_=re.compile(r'(title|role)', re.I))
                         title = title_elem.get_text(strip=True) if title_elem else "Team Member"
                         
-                        if name and len(name) > 2 and len(name) < 100:
+                        if name and self._is_valid_person_name(name):
                             contact = {
                                 "contact_name": name,
                                 "role": title,
@@ -321,8 +321,48 @@ class WebContactScraper:
                 logger.info(f"    ✅ Matched: {contact.get('contact_name')} - {contact.get('role')}")
             else:
                 logger.info(f"    ❌ Skipped: {contact.get('contact_name')} - {contact.get('role')}")
-        
+
         return filtered
+
+    def _is_valid_person_name(self, name: str) -> bool:
+        if not name:
+            return False
+
+        cleaned = name.strip()
+        if any(ch in cleaned for ch in "?#!@$%&*()[]{}:"):
+            return False
+
+        lowered = cleaned.lower()
+        disallowed = [
+            "team",
+            "directory",
+            "company",
+            "about",
+            "who",
+            "what",
+            "why",
+            "create",
+            "plugin",
+            "we",
+            "contact",
+            "leadership",
+            "our story",
+        ]
+        if any(keyword in lowered for keyword in disallowed):
+            return False
+
+        parts = [p for p in re.split(r"[\s,]+", cleaned) if p]
+        if len(parts) < 2 or len(parts) > 5:
+            return False
+
+        valid_parts = 0
+        for part in parts:
+            if re.match(r"^[A-Z][a-zA-Z\-']+$", part):
+                valid_parts += 1
+            else:
+                return False
+
+        return valid_parts >= 2
 
 
 # Global instance
