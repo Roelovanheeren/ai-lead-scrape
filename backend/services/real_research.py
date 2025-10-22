@@ -497,6 +497,10 @@ class RealResearchEngine:
 
         blocked_domains = {
             "business.com",
+            "businessdirectoryplugin.com",
+            "businessdirectoryplugin.net",
+            "businessdirectoryplugin.co",
+            "businessdirectory.com",
             "forbes.com",
             "finance.yahoo.com",
             "news.yahoo.com",
@@ -529,6 +533,10 @@ class RealResearchEngine:
             "news.microsoft.com",
             "about.facebook.com",
             "help.twitter.com",
+            "stateof.ai",
+            "aiindex.stanford.edu",
+            "github.com",
+            "docs.python.org",
         }
 
         if domain_lower in blocked_domains:
@@ -667,16 +675,29 @@ class RealResearchEngine:
             "potential",
             "technology",
             "directory",
+            "plugin",
             "guide",
             "report",
             "case study",
             "whitepaper",
+            "state of",
+            "the state",
+            "industry report",
         ]
 
         if any(lowered.startswith(prefix.strip()) for prefix in disqualifiers):
             return False
 
-        if any(keyword in lowered for keyword in ["opportunit", "potential", "technology leads", "economic"]):
+        if any(keyword in lowered for keyword in [
+            "opportunit",
+            "potential",
+            "technology leads",
+            "economic",
+            "directory",
+            "plugin",
+            "company directory",
+            "who are we",
+        ]):
             return False
 
         parts = [p for p in re.split(r"\s+", name) if p]

@@ -235,6 +235,9 @@ class ContactIdentificationService:
             return False
 
         lowered = name.lower()
+        if any(char in name for char in "?#!@$%&*"):
+            return False
+
         if any(keyword in lowered for keyword in [
             "team",
             "directory",
@@ -251,6 +254,13 @@ class ContactIdentificationService:
             "marketing",
             "editor",
             "journalist",
+            "plugin",
+            "page",
+            "who",
+            "what",
+            "why",
+            "state",
+            "create",
         ]):
             return False
 

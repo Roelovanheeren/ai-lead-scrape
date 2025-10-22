@@ -232,7 +232,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
         # This is important even for specific company requests to know what roles to target
         job_storage[job_id].update({
             "progress": 5,
-            "message": "Analyzing research guide..."
+            "message": "Analyzing research guide"
         })
         
         # Extract research guide text from knowledge base
@@ -287,12 +287,12 @@ async def process_job_real_only(job_id: str, job_data: dict):
             
             job_storage[job_id].update({
                 "progress": 20,
-                "message": "Searching for companies..."
+                "message": "Searching for qualified investors"
             })
-            
+
             # Search for companies using targeting criteria
             companies = await search_companies(targeting_criteria, target_count)
-            
+
             if not companies or len(companies) == 0:
                 job_storage[job_id].update({
                     "status": "failed",
@@ -302,27 +302,47 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 logger.error(f"Job {job_id}: No companies found")
                 return
         
-        logger.info(f"Job {job_id}: ✅ Found {len(companies)} companies")
-        
+        logger.info(f"Job {job_id}: ✅ Initial discovery returned {len(companies)} companies")
+
         # Find contacts at each company
+        # Ensure companies look valid before continuing
+        valid_companies = [c for c in companies if c.get('name') and c.get('domain')]
+
+        logger.info(f"Job {job_id}: ✅ {len(valid_companies)} companies remain after filtering")
+
+        if not valid_companies:
+            job_storage[job_id].update({
+                "status": "failed",
+                "progress": 100,
+                "message": "❌ No qualified companies found after filtering",
+                "error": "All search results were filtered out as articles/directories",
+                "leads": [],
+                "companies_searched": 0
+            })
+            logger.error(f"Job {job_id}: No valid companies after filtering")
+            return
+
         job_storage[job_id].update({
-            "progress": 50,
-            "message": f"Finding contacts at {len(companies)} companies..."
+            "progress": 45,
+            "message": f"Evaluating {len(valid_companies)} company candidates"
         })
-        
+
         all_leads = []
-        
-        for i, company in enumerate(companies):
+        skip_reasons = []
+
+        total_companies = len(valid_companies)
+
+        for i, company in enumerate(valid_companies):
             company_name = company.get('name', 'Unknown')
             domain = company.get('domain', '')
-            
-            logger.info(f"Job {job_id}: [{i+1}/{len(companies)}] Finding contacts at {company_name} ({domain})")
-            
+
+            logger.info(f"Job {job_id}: [{i+1}/{total_companies}] Evaluating {company_name} ({domain})")
+
             job_storage[job_id].update({
-                "progress": 50 + int((i / len(companies)) * 40),
-                "message": f"Finding contacts at {company_name}... ({i+1}/{len(companies)})"
+                "progress": 45 + int(((i + 1) / total_companies) * 40),
+                "message": f"Evaluating company {i+1} of {total_companies}"
             })
-            
+
             try:
                 # Get targeting criteria if available
                 targeting_criteria = job_data.get('targeting_criteria', {})
@@ -335,6 +355,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
                     all_leads.extend(contacts)
                 else:
                     logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
+                    skip_reasons.append(f"No qualifying contacts at {company_name} ({domain})")
                     logger.error(f"  Possible reasons:")
                     logger.error(f"    - Website has no /team or /leadership page")
                     logger.error(f"    - Team page uses non-standard HTML structure")
@@ -351,27 +372,30 @@ async def process_job_real_only(job_id: str, job_data: dict):
         if len(all_leads) == 0:
             # Build detailed error message explaining WHY no contacts found
             error_details = []
-            error_details.append(f"Searched {len(companies)} companies but found 0 contacts.")
+            error_details.append(f"Searched {total_companies} companies but found 0 contacts.")
             error_details.append("\nPossible reasons:")
             error_details.append("1. Companies don't have public team/leadership pages")
             error_details.append("2. Team pages use non-standard HTML (JavaScript-heavy sites)")
             error_details.append("3. Websites block web scraping")
             error_details.append("4. Wrong companies found by Google search (articles/blogs)")
             error_details.append("\nCompanies searched:")
-            for i, company in enumerate(companies[:10], 1):  # Show first 10
+            for i, company in enumerate(valid_companies[:10], 1):  # Show first 10
                 error_details.append(f"  {i}. {company.get('name')} ({company.get('domain')})")
-            if len(companies) > 10:
-                error_details.append(f"  ... and {len(companies) - 10} more")
-            
+            if len(valid_companies) > 10:
+                error_details.append(f"  ... and {len(valid_companies) - 10} more")
+            if skip_reasons:
+                error_details.append("\nNotes:")
+                error_details.extend([f"- {reason}" for reason in skip_reasons])
+
             detailed_message = "\n".join(error_details)
-            
+
             job_storage[job_id].update({
                 "status": "failed",
                 "progress": 100,
-                "message": f"❌ No contacts found at {len(companies)} companies",
+                "message": f"❌ No contacts found at {total_companies} companies",
                 "error": detailed_message,
                 "leads": [],
-                "companies_searched": len(companies)
+                "companies_searched": total_companies
             })
             logger.error(f"Job {job_id}: FAILED - No contacts found")
             logger.error(detailed_message)
@@ -381,7 +405,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 "progress": 100,
                 "message": f"✅ Found {len(all_leads)} real contacts with verified emails!",
                 "leads": all_leads,
-                "companies_searched": len(companies)
+                "companies_searched": total_companies
             })
             logger.info(f"Job {job_id}: ✅ COMPLETED with {len(all_leads)} leads")
         
