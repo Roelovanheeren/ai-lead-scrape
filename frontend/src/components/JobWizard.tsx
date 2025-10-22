@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient, JobCreate } from '@/lib/api'
 import { storageService } from '@/lib/storage'
+import type { UploadedDocument } from '@/lib/storage'
 import { 
   Target, 
   Settings, 
@@ -22,7 +23,8 @@ import {
   Lightbulb,
   Database,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,7 +63,7 @@ const promptChips = [
 export default function JobWizard({}: JobWizardProps) {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
-  const [knowledgeBase, setKnowledgeBase] = useState<any[]>([])
+  const [knowledgeBase, setKnowledgeBase] = useState<UploadedDocument[]>([])
   const [activeConnectedSheet, setActiveConnectedSheet] = useState<any>(null)
   const [existingLeads, setExistingLeads] = useState<any[]>([])
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([])
@@ -172,10 +174,11 @@ export default function JobWizard({}: JobWizardProps) {
     loadData()
   }, [])
 
-  const generateSuggestedPrompts = (docs: any[]) => {
-    const suggestions = []
-    
-    if (docs.length > 0) {
+  const generateSuggestedPrompts = (docs: UploadedDocument[]) => {
+    const suggestions: string[] = []
+    const processedDocs = docs.filter(doc => doc.processed && (doc.extractedText || doc.content))
+
+    if (processedDocs.length > 0) {
       suggestions.push("Generate leads as explained in the knowledge base")
       suggestions.push("Find companies matching the target audience profile")
       suggestions.push("Research prospects based on uploaded documents")
@@ -187,6 +190,31 @@ export default function JobWizard({}: JobWizardProps) {
     suggestions.push("Research decision makers at [company type] companies")
     
     setSuggestedPrompts(suggestions)
+  }
+
+  const formatKnowledgeCategory = (category?: UploadedDocument['category']) => {
+    switch (category) {
+      case 'research_guide':
+        return 'Research Guide'
+      case 'outreach_playbook':
+        return 'Outreach Playbook'
+      case 'audience_profile':
+        return 'Audience Profile'
+      default:
+        return 'General Context'
+    }
+  }
+
+  const getDocumentStatusStyles = (doc: UploadedDocument) => {
+    if (doc.error) {
+      return { label: 'Needs attention', className: 'bg-destructive/20 text-destructive border-destructive/30' }
+    }
+
+    if (doc.processed) {
+      return { label: 'Ready', className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' }
+    }
+
+    return { label: 'Processing', className: 'bg-amber-500/20 text-amber-200 border-amber-500/30' }
   }
 
   const addKeyword = (keyword: string) => {
@@ -244,6 +272,8 @@ export default function JobWizard({}: JobWizardProps) {
 
   const handleSubmit = async () => {
     try {
+      const processedKnowledgeDocs = knowledgeBase.filter(doc => doc.processed && (doc.extractedText || doc.content))
+
       const jobData: JobCreate = {
         prompt: formData.prompt,
         target_count: formData.targetCount,
@@ -262,11 +292,16 @@ export default function JobWizard({}: JobWizardProps) {
         header_mapping: headerMapping?.mapping,
         output_format: headerMapping ? 'sheet_mapped' : formData.outputFormat,
         // CRITICAL: Send knowledge base documents to backend
-        knowledge_base_documents: knowledgeBase.map(doc => ({
+        knowledge_base_documents: processedKnowledgeDocs.map(doc => ({
+          id: doc.id,
           name: doc.name,
           content: doc.content,
           extractedText: doc.extractedText,
-          type: doc.type
+          type: doc.type,
+          category: doc.category,
+          summary: doc.summary,
+          wordCount: doc.wordCount,
+          uploadedAt: doc.uploadedAt
         }))
       }
       
@@ -357,18 +392,51 @@ export default function JobWizard({}: JobWizardProps) {
                     
                     {knowledgeBase.length > 0 ? (
                       <div className="space-y-3">
-                        {knowledgeBase.map((doc, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 bg-card/50 rounded-lg border border-white/10">
-                            <FileText className="h-4 w-4 text-teal-400" />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{doc.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {doc.type} • {new Date(doc.uploadedAt).toLocaleDateString()}
-                              </p>
+                        {knowledgeBase.map((doc, index) => {
+                          const status = getDocumentStatusStyles(doc)
+                          return (
+                            <div key={doc.id || index} className="flex items-start gap-3 p-4 bg-card/50 rounded-lg border border-white/10">
+                              <FileText className="h-4 w-4 text-teal-400 mt-1" />
+                              <div className="flex-1 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-medium">{doc.name}</p>
+                                  <Badge variant="outline" className={`text-xs ${status.className}`}>
+                                    {status.label}
+                                  </Badge>
+                                  {doc.category && (
+                                    <Badge variant="outline" className="text-xs capitalize border-teal-400/30 text-teal-200/90">
+                                      {formatKnowledgeCategory(doc.category)}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {(doc.type || 'Unknown type')} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                                  {doc.wordCount ? ` • ${doc.wordCount.toLocaleString()} words` : ''}
+                                </p>
+                                {doc.summary && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">
+                                    {doc.summary}
+                                  </p>
+                                )}
+                                {doc.error && (
+                                  <p className="text-xs text-destructive flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    {doc.error}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center">
+                                {doc.error ? (
+                                  <AlertCircle className="h-4 w-4 text-destructive" />
+                                ) : doc.processed ? (
+                                  <CheckCircle className="h-4 w-4 text-green-400" />
+                                ) : (
+                                  <Loader2 className="h-4 w-4 text-amber-300 animate-spin" />
+                                )}
+                              </div>
                             </div>
-                            <CheckCircle className="h-4 w-4 text-green-400" />
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ) : (
                       <div className="p-6 bg-card/30 rounded-lg border border-dashed border-white/20 text-center">
@@ -387,18 +455,15 @@ export default function JobWizard({}: JobWizardProps) {
                       <Upload className="h-5 w-5 text-teal-400" />
                       <h4 className="font-medium">Add New Knowledge</h4>
                     </div>
-                    <div 
-                      className="p-6 bg-card/30 rounded-lg border border-dashed border-white/20 text-center hover:border-teal-400/50 transition-colors cursor-pointer"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        // Handle file drop
-                        console.log('Files dropped:', e.dataTransfer.files)
-                      }}
-                    >
+                    <div className="p-6 bg-card/30 rounded-lg border border-dashed border-white/20 text-center">
                       <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground mb-1">Drag & drop files here</p>
-                      <p className="text-xs text-muted-foreground">or click to browse</p>
+                      <p className="text-sm text-muted-foreground mb-1">Manage your knowledge base documents</p>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Upload or update files in the Target Audience Intelligence workspace to make them available here.
+                      </p>
+                      <Button variant="outline" onClick={() => navigate('/target-audience')}>
+                        Open Knowledge Workspace
+                      </Button>
                     </div>
                   </div>
 
@@ -573,13 +638,40 @@ export default function JobWizard({}: JobWizardProps) {
                     <div className="mb-6">
                       <h4 className="font-medium mb-3">Knowledge Base</h4>
                       <div className="space-y-2">
-                        {knowledgeBase.map((doc, index) => (
-                          <div key={index} className="flex items-center gap-2 p-2 bg-card/30 rounded-lg">
-                            <FileText className="h-4 w-4 text-teal-400" />
-                            <span className="text-sm">{doc.name}</span>
-                            <CheckCircle className="h-4 w-4 text-green-400 ml-auto" />
-                          </div>
-                        ))}
+                        {knowledgeBase.map((doc, index) => {
+                          const status = getDocumentStatusStyles(doc)
+                          return (
+                            <div key={doc.id || index} className="flex items-center gap-3 p-3 bg-card/30 rounded-lg border border-white/10">
+                              <FileText className="h-4 w-4 text-teal-400" />
+                              <div className="flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium">{doc.name}</span>
+                                  <Badge variant="outline" className={`text-xs ${status.className}`}>
+                                    {status.label}
+                                  </Badge>
+                                  {doc.category && (
+                                    <Badge variant="outline" className="text-xs capitalize border-teal-400/30 text-teal-200/80">
+                                      {formatKnowledgeCategory(doc.category)}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {(doc.type || 'Unknown type')} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                                  {doc.wordCount ? ` • ${doc.wordCount.toLocaleString()} words` : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center">
+                                {doc.error ? (
+                                  <AlertCircle className="h-4 w-4 text-destructive" />
+                                ) : doc.processed ? (
+                                  <CheckCircle className="h-4 w-4 text-green-400" />
+                                ) : (
+                                  <Loader2 className="h-4 w-4 text-amber-300 animate-spin" />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

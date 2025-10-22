@@ -21,6 +21,7 @@ anthropic==0.7.8
 pandas==2.1.4
 numpy==1.24.4
 python-dateutil==2.8.2
+pdfminer.six==20231228
 
 # Web Scraping
 playwright==1.40.0

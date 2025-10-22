@@ -32,6 +32,12 @@ export interface ConnectedSheet {
   }
 }
 
+export type KnowledgeBaseCategory =
+  | 'research_guide'
+  | 'outreach_playbook'
+  | 'audience_profile'
+  | 'other'
+
 export interface UploadedDocument {
   id: string
   name: string
@@ -42,6 +48,9 @@ export interface UploadedDocument {
   processed: boolean
   extractedText?: string
   summary?: string
+  category?: KnowledgeBaseCategory
+  wordCount?: number
+  error?: string
 }
 
 export interface AudienceProfile {
@@ -204,6 +213,29 @@ class StorageService {
       await this.saveUploadedDocuments(documents)
     } catch (error) {
       console.error('Failed to add uploaded document:', error)
+      throw error
+    }
+  }
+
+  async updateUploadedDocument(documentId: string, updates: Partial<UploadedDocument>): Promise<UploadedDocument | null> {
+    try {
+      const documents = await this.getUploadedDocuments()
+      const index = documents.findIndex(d => d.id === documentId)
+
+      if (index === -1) {
+        return null
+      }
+
+      const updatedDocument = {
+        ...documents[index],
+        ...updates
+      }
+
+      documents[index] = updatedDocument
+      await this.saveUploadedDocuments(documents)
+      return updatedDocument
+    } catch (error) {
+      console.error('Failed to update uploaded document:', error)
       throw error
     }
   }

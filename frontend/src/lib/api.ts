@@ -52,6 +52,19 @@ export interface Campaign {
   created_at: string
 }
 
+export interface KnowledgeBaseExtractPayload {
+  name: string
+  type: string
+  data: string
+}
+
+export interface KnowledgeBaseExtractResponse {
+  text: string
+  summary: string
+  category: string
+  word_count: number
+}
+
 class ApiClient {
   private baseUrl: string
 
@@ -117,6 +130,13 @@ class ApiClient {
     return this.request<JobResponse>('/jobs/', {
       method: 'POST',
       body: JSON.stringify(job),
+    })
+  }
+
+  async extractKnowledgeBaseDocument(payload: KnowledgeBaseExtractPayload): Promise<KnowledgeBaseExtractResponse> {
+    return this.request<KnowledgeBaseExtractResponse>('/knowledge-base/extract', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     })
   }
 
