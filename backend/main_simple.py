@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import uuid
 import os
@@ -353,6 +353,41 @@ async def process_job_real_only(job_id: str, job_data: dict):
         skip_reasons: List[str] = []
         processed_domains: set[str] = set()
         companies_evaluated = 0
+        seen_leads: set[Tuple[str, str, str, str]] = set()
+
+        def normalize_contact(raw_contact: Dict[str, Any], company: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            full_name = (
+                raw_contact.get("contact_name")
+                or " ".join(
+                    part for part in [
+                        raw_contact.get("first_name"),
+                        raw_contact.get("last_name"),
+                    ]
+                    if part
+                ).strip()
+            )
+            if not full_name or len(full_name) < 3:
+                return None
+
+            company_name = company.get("name") or raw_contact.get("company") or ""
+            email = raw_contact.get("email") or raw_contact.get("email_address")
+            phone = raw_contact.get("phone") or raw_contact.get("phone_number")
+            linkedin = raw_contact.get("linkedin_url") or raw_contact.get("linkedin")
+            confidence = raw_contact.get("confidence") or raw_contact.get("fit_score") or 0.6
+
+            lead = {
+                "id": raw_contact.get("id") or f"{company_name}-{full_name}".replace(" ", "_"),
+                "contact_name": full_name,
+                "company": company_name,
+                "title": raw_contact.get("role") or raw_contact.get("title"),
+                "email": email,
+                "phone": phone,
+                "linkedin_url": linkedin,
+                "confidence": confidence,
+                "source": raw_contact.get("source") or "Web Research",
+                "company_domain": company.get("domain"),
+            }
+            return lead
 
         def _next_candidate() -> Optional[Dict[str, Any]]:
             if primary_candidates:
@@ -389,7 +424,22 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
                 if contacts:
                     logger.info(f"Job {job_id}: ✅ Found {len(contacts)} contacts at {company_name}")
-                    all_leads.extend(contacts)
+                    for raw_contact in contacts:
+                        normalized = normalize_contact(raw_contact, candidate)
+                        if not normalized:
+                            continue
+                        dedupe_key = (
+                            (normalized.get("contact_name") or "").lower(),
+                            (normalized.get("company") or "").lower(),
+                            (normalized.get("linkedin_url") or "").lower(),
+                            (normalized.get("email") or "").lower(),
+                        )
+                        if dedupe_key in seen_leads:
+                            continue
+                        seen_leads.add(dedupe_key)
+                        all_leads.append(normalized)
+                        if len(all_leads) >= target_count:
+                            break
                 else:
                     logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
                     skip_reasons.append(f"No qualifying contacts at {company_name} ({domain})")
@@ -399,6 +449,9 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 )
                 import traceback
                 logger.error(f"Traceback:\n{traceback.format_exc()}")
+
+            if len(all_leads) >= target_count:
+                break
 
         total_companies = companies_evaluated
         
