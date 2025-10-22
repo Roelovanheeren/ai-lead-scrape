@@ -39,6 +39,15 @@ class ContactIdentificationService:
             criteria = await extract_targeting_criteria(job.get("prompt", ""))
 
         contacts: List[Dict[str, Any]] = await find_company_contacts(company, criteria)
+        contacts = self._filter_contacts(contacts, criteria)
+
+        if not contacts:
+            logger.warning(
+                "No contacts met targeting requirements for %s (%s)",
+                company.get("name"),
+                company.get("domain"),
+            )
+            return []
 
         stored: List[ContactResponse] = []
         for contact in contacts:
@@ -165,6 +174,55 @@ class ContactIdentificationService:
         if "manager" in title:
             return ContactSeniority.MANAGER
         return ContactSeniority.INDIVIDUAL
+
+    def _filter_contacts(
+        self,
+        contacts: List[Dict[str, Any]],
+        criteria: Optional[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Deduplicate and enforce targeting rules for scraped contacts."""
+
+        if not contacts:
+            return []
+
+        target_roles = []
+        if criteria:
+            target_roles = [role.lower() for role in criteria.get("target_roles", []) if role]
+
+        role_keywords = set()
+        for role in target_roles:
+            role_keywords.update(role.split())
+
+        def matches_target(contact_role: str) -> bool:
+            if not role_keywords:
+                return True
+            contact_role = (contact_role or "").lower()
+            return any(keyword in contact_role for keyword in role_keywords)
+
+        seen_keys = set()
+        filtered: List[Dict[str, Any]] = []
+
+        for contact in contacts:
+            role = contact.get("role") or contact.get("title") or ""
+            if not matches_target(role):
+                continue
+
+            if not (contact.get("linkedin") or contact.get("email")):
+                # Require at least one actionable field
+                continue
+
+            name_key = (contact.get("contact_name") or contact.get("name") or "").strip().lower()
+            linkedin_key = (contact.get("linkedin") or "").strip().lower()
+            email_key = (contact.get("email") or "").strip().lower()
+            dedupe_key = (name_key, role.lower(), linkedin_key, email_key)
+
+            if dedupe_key in seen_keys:
+                continue
+
+            seen_keys.add(dedupe_key)
+            filtered.append(contact)
+
+        return filtered
 
     async def _get_company(self, company_id: str) -> Optional[Dict[str, Any]]:
         return await self.db.fetch_one("SELECT * FROM companies WHERE id = $1", company_id)
