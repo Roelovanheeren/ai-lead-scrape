@@ -17,7 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUpDown,
-  Plus
+  Plus,
+  Linkedin
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +44,7 @@ const mockLeads = [
     tags: ['Decision Maker', 'Series B'],
     verified: true,
     starred: false,
+    linkedin_url: 'https://www.linkedin.com/in/sarahjohnson'
   },
   {
     id: 2,
@@ -60,6 +62,7 @@ const mockLeads = [
     tags: ['Technical Lead', 'Startup'],
     verified: false,
     starred: true,
+    linkedin_url: 'https://www.linkedin.com/in/michaelchen'
   },
   {
     id: 3,
@@ -77,6 +80,7 @@ const mockLeads = [
     tags: ['Product Manager', 'Early Stage'],
     verified: true,
     starred: false,
+    linkedin_url: 'https://www.linkedin.com/in/emilyrodriguez'
   },
   {
     id: 4,
@@ -94,6 +98,7 @@ const mockLeads = [
     tags: ['C-Level', 'Enterprise'],
     verified: true,
     starred: true,
+    linkedin_url: 'https://www.linkedin.com/in/davidpark'
   },
   {
     id: 5,
@@ -111,6 +116,7 @@ const mockLeads = [
     tags: ['Sales Leader', 'Mid-Stage'],
     verified: false,
     starred: false,
+    linkedin_url: 'https://www.linkedin.com/in/lisathompson'
   },
 ]
 
@@ -398,8 +404,21 @@ export default function LeadsTable() {
                             {lead.name.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>
-                        <div>
-                          <div className="font-medium">{lead.name}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium flex items-center gap-2">
+                            <span className="truncate">{lead.name}</span>
+                            {(lead as any).linkedin_url || (lead as any).linkedin ? (
+                              <a
+                                href={(lead as any).linkedin_url || (lead as any).linkedin}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand hover:text-brand/80 transition-colors"
+                                aria-label={`View ${lead.name}'s LinkedIn profile`}
+                              >
+                                <Linkedin className="h-4 w-4" />
+                              </a>
+                            ) : null}
+                          </div>
                           <div className="text-sm text-muted">{lead.location}</div>
                         </div>
                       </div>

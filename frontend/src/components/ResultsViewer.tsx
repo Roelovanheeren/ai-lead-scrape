@@ -19,7 +19,8 @@ import {
   MoreHorizontal,
   ArrowUpDown,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Linkedin
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -436,6 +437,17 @@ export default function ResultsViewer() {
                         <Phone className="h-4 w-4 text-muted" />
                         <span>{contact.phone}</span>
                       </div>
+                    )}
+                    {contact.linkedin && (
+                      <a
+                        href={contact.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-brand hover:text-brand/80 transition-colors"
+                      >
+                        <Linkedin className="h-4 w-4" />
+                        <span>LinkedIn</span>
+                      </a>
                     )}
                   </div>
                 </CardContent>

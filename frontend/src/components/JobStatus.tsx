@@ -11,7 +11,7 @@ import {
   Building,
   Mail,
   Phone,
-  ExternalLink
+  Linkedin
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -202,8 +202,16 @@ export default function JobStatus() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {jobData.leads.slice(0, 10).map((lead, index) => (
-                  <div key={lead.id} className="p-4 bg-card/50 rounded-lg border border-white/10">
+                {jobData.leads.slice(0, 10).map((lead, index) => {
+                  const linkedinUrl =
+                    lead.linkedin_url ||
+                    lead.linkedin ||
+                    lead.linkedinProfile ||
+                    lead.linkedin_profile ||
+                    lead.linkedinUrl
+
+                  return (
+                  <div key={lead.id || index} className="p-4 bg-card/50 rounded-lg border border-white/10">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-medium">{lead.contact_name}</h4>
@@ -227,13 +235,23 @@ export default function JobStatus() {
                         <Badge variant="secondary">
                           {Math.round(lead.confidence * 100)}% confidence
                         </Badge>
-                        <Button size="sm" variant="outline">
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
+                        {linkedinUrl && (
+                          <Button size="sm" variant="outline" asChild>
+                            <a
+                              href={linkedinUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1"
+                            >
+                              <Linkedin className="h-3 w-3" />
+                              <span className="text-xs">LinkedIn</span>
+                            </a>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
                 {jobData.leads.length > 10 && (
                   <p className="text-sm text-muted-foreground text-center">
                     ... and {jobData.leads.length - 10} more leads

@@ -42,6 +42,8 @@ export interface Lead {
   confidence: number
   source: string
   created_at: string
+  linkedin_url?: string
+  linkedin?: string
 }
 
 export interface Campaign {
