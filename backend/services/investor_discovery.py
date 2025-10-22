@@ -51,6 +51,9 @@ BTR_KEYWORDS = [
     "workforce housing",
     "apartment community",
     "value-add multifamily",
+    "apartment development",
+    "multifamily development",
+    "rental housing",
 ]
 
 OZ_KEYWORDS = [
@@ -111,11 +114,13 @@ def _score_company(result: Dict[str, Any]) -> Tuple[int, List[str]]:
     reasons: List[str] = []
     score = 0
 
-    if any(keyword in text for keyword in LP_KEYWORDS):
+    lp_detected = any(keyword in text for keyword in LP_KEYWORDS)
+    if lp_detected:
         score += 4
         reasons.append("LP language detected")
 
-    if any(keyword in text for keyword in BTR_KEYWORDS):
+    btr_detected = any(keyword in text for keyword in BTR_KEYWORDS)
+    if btr_detected:
         score += 3
         reasons.append("BTR/multifamily focus")
 
@@ -130,6 +135,10 @@ def _score_company(result: Dict[str, Any]) -> Tuple[int, List[str]]:
     if any(keyword in text for keyword in SCALE_KEYWORDS):
         score += 1
         reasons.append("Institutional scale marker")
+
+    # Require at least one direct BTR/multifamily indicator to stay relevant.
+    if not btr_detected:
+        return 0, []
 
     # domain heuristics – block known news sites unless they also have strong LP signals
     if domain in BLOCKED_DOMAINS and score < 7:

@@ -349,6 +349,40 @@ async def process_job_real_only(job_id: str, job_data: dict):
             "message": f"Evaluating up to {total_available} company candidates"
         })
 
+        ACCEPTED_TITLE_KEYWORDS = [
+            "partner",
+            "principal",
+            "managing director",
+            "director",
+            "vice president",
+            "svp",
+            "investment officer",
+            "chief investment",
+            "head of",
+            "portfolio manager",
+            "capital markets",
+            "fund manager",
+            "coo",
+            "president",
+            "founder",
+            "chairman",
+        ]
+        REJECTED_TITLE_KEYWORDS = [
+            "associate",
+            "analyst",
+            "assistant",
+            "specialist",
+            "coordinator",
+            "intern",
+            "advisor",
+            "consultant",
+            "writer",
+            "marketing",
+            "communications",
+            "recruit",
+            "support",
+        ]
+
         all_leads: List[Dict[str, Any]] = []
         skip_reasons: List[str] = []
         processed_domains: set[str] = set()
@@ -375,11 +409,24 @@ async def process_job_real_only(job_id: str, job_data: dict):
             linkedin = raw_contact.get("linkedin_url") or raw_contact.get("linkedin")
             confidence = raw_contact.get("confidence") or raw_contact.get("fit_score") or 0.6
 
+            title = raw_contact.get("role") or raw_contact.get("title") or ""
+            title_lower = title.lower() if title else ""
+
+            if title_lower:
+                if any(block in title_lower for block in REJECTED_TITLE_KEYWORDS):
+                    return None
+                if not any(allow in title_lower for allow in ACCEPTED_TITLE_KEYWORDS):
+                    # Require at least some senior keyword
+                    return None
+            else:
+                # Skip contacts without a title we can evaluate
+                return None
+
             lead = {
                 "id": raw_contact.get("id") or f"{company_name}-{full_name}".replace(" ", "_"),
                 "contact_name": full_name,
                 "company": company_name,
-                "title": raw_contact.get("role") or raw_contact.get("title"),
+                "title": title,
                 "email": email,
                 "phone": phone,
                 "linkedin_url": linkedin,
