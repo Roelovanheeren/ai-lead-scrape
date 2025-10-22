@@ -15,6 +15,8 @@ import asyncio
 import re
 from pathlib import Path
 
+from resources.hazen_road_research_guide import HAZEN_ROAD_GUIDE
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -29,8 +31,9 @@ try:
         extract_targeting_criteria,
         search_companies,
         research_company_deep,
-        find_company_contacts
+        find_company_contacts,
     )
+    from services.investor_discovery import discover_investor_companies
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
 except ImportError as e:
@@ -235,8 +238,8 @@ async def process_job_real_only(job_id: str, job_data: dict):
             "message": "Analyzing research guide"
         })
         
-        # Extract research guide text from knowledge base
-        research_guide_text = ""
+        # Extract research guide text from knowledge base (Hazen Road instructions always first)
+        research_guide_text = HAZEN_ROAD_GUIDE.strip()
         for doc in job_data.get("knowledge_base_documents", []):
             text = doc.get("extractedText") or doc.get("content", "")
             if text:
@@ -255,21 +258,18 @@ async def process_job_real_only(job_id: str, job_data: dict):
         logger.info(f"  Target Department: {targeting_criteria.get('target_department', 'executive')}")
         
         # Check if user is asking for a specific company
+        discovery_diagnostics: List[Dict[str, Any]] = []
         specific_company_name = extract_company_name_from_prompt(prompt)
-        
+
         if specific_company_name:
-            # USER ASKED FOR SPECIFIC COMPANY (but still use research guide for role targeting)
             logger.info(f"Job {job_id}: 🎯 SPECIFIC COMPANY REQUEST: {specific_company_name}")
-            logger.info(f"Job {job_id}: 📚 Will use research guide to target correct roles at this company")
-            
             job_storage[job_id].update({
-                "progress": 20,
-                "message": f"Searching for {specific_company_name}..."
+                "progress": 15,
+                "message": f"Searching for {specific_company_name}"
             })
-            
-            # Find the specific company (pass original prompt for context)
+
             company = await find_specific_company(specific_company_name, prompt)
-            
+
             if not company:
                 job_storage[job_id].update({
                     "status": "failed",
@@ -278,30 +278,39 @@ async def process_job_real_only(job_id: str, job_data: dict):
                 })
                 logger.error(f"Job {job_id}: Company not found")
                 return
-            
+
             companies = [company]
-            
+
         else:
-            # GENERAL SEARCH USING RESEARCH GUIDE
-            logger.info(f"Job {job_id}: 📋 GENERAL SEARCH using research guide")
-            
+            logger.info(f"Job {job_id}: 📋 Running institutional investor discovery")
+
             job_storage[job_id].update({
-                "progress": 20,
-                "message": "Searching for qualified investors"
+                "progress": 15,
+                "message": "Discovering institutional investors"
             })
 
-            # Search for companies using targeting criteria
-            companies = await search_companies(targeting_criteria, target_count)
+            companies, discovery_diagnostics = await discover_investor_companies(
+                prompt,
+                targeting_criteria,
+                target_count,
+            )
 
-            if not companies or len(companies) == 0:
+            job_data['discovery_diagnostics'] = discovery_diagnostics
+            job_storage[job_id]['discovery_diagnostics'] = discovery_diagnostics
+
+            if not companies:
+                top_notes = ", ".join(
+                    f"{entry.get('name')} (score {entry.get('score')})" for entry in discovery_diagnostics[:10]
+                ) or "No qualified investors discovered"
                 job_storage[job_id].update({
                     "status": "failed",
-                    "message": "❌ No companies found matching your criteria",
-                    "error": "No search results. Try different keywords or check API keys."
+                    "message": "❌ Discovery returned no qualified institutional investors",
+                    "error": f"Discovery diagnostics: {top_notes}",
+                    "progress": 100
                 })
-                logger.error(f"Job {job_id}: No companies found")
+                logger.error(f"Job {job_id}: Discovery produced no qualified companies")
                 return
-        
+
         logger.info(f"Job {job_id}: ✅ Initial discovery returned {len(companies)} companies")
 
         # Find contacts at each company
@@ -323,7 +332,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
             return
 
         job_storage[job_id].update({
-            "progress": 45,
+            "progress": 25,
             "message": f"Evaluating {len(valid_companies)} company candidates"
         })
 
@@ -339,7 +348,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
             logger.info(f"Job {job_id}: [{i+1}/{total_companies}] Evaluating {company_name} ({domain})")
 
             job_storage[job_id].update({
-                "progress": 45 + int(((i + 1) / total_companies) * 40),
+                "progress": 25 + int(((i + 1) / total_companies) * 50),
                 "message": f"Evaluating company {i+1} of {total_companies}"
             })
 
@@ -386,6 +395,12 @@ async def process_job_real_only(job_id: str, job_data: dict):
             if skip_reasons:
                 error_details.append("\nNotes:")
                 error_details.extend([f"- {reason}" for reason in skip_reasons])
+            if discovery_diagnostics:
+                error_details.append("\nDiscovery diagnostics:")
+                for entry in discovery_diagnostics[:5]:
+                    error_details.append(
+                        f"- {entry.get('name')} ({entry.get('domain')}): score {entry.get('score')}, reasons {entry.get('reasons')}"
+                    )
 
             detailed_message = "\n".join(error_details)
 

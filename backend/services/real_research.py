@@ -342,7 +342,30 @@ class RealResearchEngine:
             prompt_words = [w for w in original_prompt.split() if len(w) > 4][:5]
             for word in prompt_words:
                 search_queries.append(f"{word} companies")
-        
+
+        custom_queries = criteria.get("custom_queries") or []
+        if custom_queries:
+            search_queries.extend(q for q in custom_queries if q)
+
+        core_queries = [
+            "institutional build-to-rent investors Sunbelt",
+            "opportunity zone multifamily capital partner",
+            "limited partner multifamily equity Phoenix",
+            "Sunbelt multifamily fund manager",
+            "qualified opportunity fund multifamily investor",
+        ]
+        for core_query in core_queries:
+            if core_query not in search_queries:
+                search_queries.append(core_query)
+
+        seen_queries = set()
+        deduped_queries = []
+        for query in search_queries:
+            if query not in seen_queries:
+                seen_queries.add(query)
+                deduped_queries.append(query)
+        search_queries = deduped_queries
+
         logger.info(f"🔎 Generated {len(search_queries)} targeted search queries:")
         for i, query in enumerate(search_queries[:5], 1):
             logger.info(f"  {i}. \"{query}\"")
