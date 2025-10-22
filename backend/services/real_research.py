@@ -465,8 +465,13 @@ class RealResearchEngine:
                             logger.warning(f"     Domain: {domain}, URL: {link[:80]}")
                             continue
                         
+                        extracted_name = self._extract_company_name(title)
+                        if not self._looks_like_company_name(extracted_name):
+                            logger.warning(f"  🚫 FILTERED OUT (reason: suspicious company name): {extracted_name[:80]}")
+                            continue
+
                         company = {
-                            "name": self._extract_company_name(title),
+                            "name": extracted_name,
                             "website": link,
                             "description": item.get("snippet", ""),
                             "domain": domain,
@@ -484,16 +489,84 @@ class RealResearchEngine:
             logger.error(f"Error searching Google: {e}")
             return []
     
+    def _is_known_non_company_domain(self, domain: str) -> Optional[str]:
+        if not domain:
+            return "Missing domain"
+
+        domain_lower = domain.lower()
+
+        blocked_domains = {
+            "business.com",
+            "forbes.com",
+            "finance.yahoo.com",
+            "news.yahoo.com",
+            "cnn.com",
+            "nytimes.com",
+            "theguardian.com",
+            "bloomberg.com",
+            "wsj.com",
+            "cnbc.com",
+            "marketwatch.com",
+            "techcrunch.com",
+            "venturebeat.com",
+            "wired.com",
+            "medium.com",
+            "substack.com",
+            "harvard.edu",
+            "mit.edu",
+            "wikipedia.org",
+            "britannica.com",
+            "microsoft.com",
+            "learn.microsoft.com",
+            "support.microsoft.com",
+            "support.google.com",
+            "developers.google.com",
+            "docs.google.com",
+            "cloud.google.com",
+            "aws.amazon.com",
+            "support.apple.com",
+            "help.linkedin.com",
+            "news.microsoft.com",
+            "about.facebook.com",
+            "help.twitter.com",
+        }
+
+        if domain_lower in blocked_domains:
+            return "Publisher/directory domain"
+
+        keyword_blocks = [
+            "news.",
+            ".news",
+            "blog.",
+            ".blog",
+            "press",
+            "insights",
+            "resources",
+            "support",
+            "docs",
+            "knowledge",
+            "learn",
+            "academy",
+            "library",
+            "events",
+            "portal",
+        ]
+
+        for keyword in keyword_blocks:
+            if keyword in domain_lower:
+                return f"Domain contains '{keyword}' indicator"
+
+        return None
+
     def _is_likely_article_or_blog(self, title: str, url: str, domain: str) -> Optional[str]:
-        """Filter out articles, blogs, and other non-company results
-        
-        Returns reason string if this should be filtered (article/blog)
-        Returns None if this looks like a real company website (should be kept)
-        """
+        """Filter out articles, blogs, and other non-company results."""
         title_lower = title.lower()
         url_lower = url.lower()
-        
-        # Common article/blog indicators in title
+
+        domain_reason = self._is_known_non_company_domain(domain)
+        if domain_reason:
+            return domain_reason
+
         article_patterns = [
             (r'\?', "Contains question mark (article)"),
             (r'\bhow\s+to\b', "How-to guide"),
@@ -509,14 +582,17 @@ class RealResearchEngine:
             (r'\bbeginner', "Beginner guide"),
             (r'\bcourse\b', "Course/tutorial"),
             (r'\blesson\b', "Lesson/tutorial"),
-            (r'\btutorial\b', "Tutorial")
+            (r'\btutorial\b', "Tutorial"),
+            (r'\bopportunit', "Opportunity article"),
+            (r'\bpotential\b', "Opportunity article"),
+            (r'\beconomic\b', "Economic analysis article"),
+            (r'technology\s+leads', "Technology leads article"),
         ]
-        
+
         for pattern, reason in article_patterns:
             if re.search(pattern, title_lower):
                 return reason
-        
-        # URL path indicators (blog posts, articles)
+
         article_url_patterns = [
             ('/blog/', "Blog post URL"),
             ('/article/', "Article URL"),
@@ -531,14 +607,16 @@ class RealResearchEngine:
             ('/stories/', "Story article URL"),
             ('/wiki/', "Wiki page URL"),
             ('/docs/', "Documentation URL"),
-            ('/help/', "Help article URL")
+            ('/help/', "Help article URL"),
         ]
-        
+
         for pattern, reason in article_url_patterns:
             if pattern in url_lower:
                 return reason
-        
-        # Domains that are content/article sites (not companies)
+
+        if re.search(r'/20\d{2}/\d{2}/\d{2}/', url_lower):
+            return "Dated article URL"
+
         article_domains = [
             ('medium.com', "Medium blog"),
             ('forbes.com', "Forbes article"),
@@ -563,18 +641,49 @@ class RealResearchEngine:
             ('sba.gov', "SBA government site"),
             ('epa.gov', "EPA government site"),
             ('amazon.com', "Amazon product/book"),
-            ('namelix.com', "Namelix tool")
+            ('namelix.com', "Namelix tool"),
         ]
-        
+
         for article_domain, reason in article_domains:
             if article_domain in domain:
                 return reason
-        
-        # If title is very long, it's probably an article
+
         if len(title) > 100:
             return "Title too long (likely article)"
-        
-        return None  # Looks like a real company website
+
+        return None
+
+    def _looks_like_company_name(self, name: str) -> bool:
+        if not name:
+            return False
+
+        lowered = name.lower()
+        disqualifiers = [
+            "how ",
+            "why ",
+            "what ",
+            "economic",
+            "opportunit",
+            "potential",
+            "technology",
+            "directory",
+            "guide",
+            "report",
+            "case study",
+            "whitepaper",
+        ]
+
+        if any(lowered.startswith(prefix.strip()) for prefix in disqualifiers):
+            return False
+
+        if any(keyword in lowered for keyword in ["opportunit", "potential", "technology leads", "economic"]):
+            return False
+
+        parts = [p for p in re.split(r"\s+", name) if p]
+        if len(parts) > 6 or len(parts) < 1:
+            return False
+
+        return True
     
     def _extract_company_name(self, title: str) -> str:
         """Extract company name from search result title"""

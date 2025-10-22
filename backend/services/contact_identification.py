@@ -6,6 +6,7 @@ Relies on real_research output and stored targeting data—no paid enrichments.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -204,6 +205,11 @@ class ContactIdentificationService:
 
         for contact in contacts:
             role = contact.get("role") or contact.get("title") or ""
+            name = contact.get("contact_name") or contact.get("name") or ""
+
+            if not self._looks_like_person(name):
+                continue
+
             if not matches_target(role):
                 continue
 
@@ -223,6 +229,43 @@ class ContactIdentificationService:
             filtered.append(contact)
 
         return filtered
+
+    def _looks_like_person(self, name: str) -> bool:
+        if not name:
+            return False
+
+        lowered = name.lower()
+        if any(keyword in lowered for keyword in [
+            "team",
+            "directory",
+            "opportunity",
+            "technology",
+            "organization",
+            "business",
+            "company",
+            "chart",
+            "guide",
+            "report",
+            "writer",
+            "copy",
+            "marketing",
+            "editor",
+            "journalist",
+        ]):
+            return False
+
+        parts = [p for p in re.split(r"[\s,]+", name) if p]
+        if len(parts) < 2:
+            return False
+
+        valid_words = [p for p in parts if re.match(r"^[A-Za-z'.-]+$", p)]
+        if len(valid_words) < 2:
+            return False
+
+        if name.isupper() or name.islower():
+            return False
+
+        return True
 
     async def _get_company(self, company_id: str) -> Optional[Dict[str, Any]]:
         return await self.db.fetch_one("SELECT * FROM companies WHERE id = $1", company_id)
