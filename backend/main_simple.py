@@ -30,7 +30,6 @@ try:
         research_company_deep,
         find_company_contacts
     )
-    from services.hunter_client import hunter_client
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
 except ImportError as e:
@@ -52,7 +51,7 @@ class JobCreate(BaseModel):
 # FastAPI app
 app = FastAPI(
     title="AI Lead Generation Platform",
-    description="Real lead generation using Google Search + Hunter.io",
+    description="Real lead generation using Google Search",
     version="2.0.0"
 )
 

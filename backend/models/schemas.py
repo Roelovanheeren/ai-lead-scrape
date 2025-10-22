@@ -107,6 +107,18 @@ class ContactResponse(BaseResponse):
     email_status: Optional[str]
     verification_date: Optional[datetime]
 
+    @validator('email')
+    def validate_email(cls, value: Optional[str]) -> Optional[str]:
+        if value and '@' not in value:
+            raise ValueError('Invalid email format')
+        return value
+
+    @validator('linkedin_url')
+    def validate_linkedin_url(cls, value: Optional[str]) -> Optional[str]:
+        if value and not value.startswith(('http://', 'https://')):
+            return f"https://{value}"
+        return value
+
 # Research Models
 class ResearchSummary(BaseModel):
     company_overview: str
@@ -229,16 +241,3 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-# Validation helpers
-@validator('email', pre=True, always=True)
-def validate_email(cls, v):
-    if v and '@' not in v:
-        raise ValueError('Invalid email format')
-    return v
-
-@validator('linkedin_url', pre=True, always=True)
-def validate_linkedin_url(cls, v):
-    if v and not v.startswith(('http://', 'https://')):
-        v = f"https://{v}"
-    return v
