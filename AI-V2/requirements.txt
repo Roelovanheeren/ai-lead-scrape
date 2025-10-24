@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+openai==1.37.0
+sqlite-utils
+typer
+pytest
+httpx

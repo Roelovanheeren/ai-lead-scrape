@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>AI Lead Discovery Tester</title>
+    <link rel="stylesheet" href="https://unpkg.com/modern-normalize" />
+    <style>
+      body { font-family: sans-serif; margin: 2rem; background: #0f172a; color: #e2e8f0; }
+      h1 { margin-bottom: 1rem; }
+      textarea { width: 100%; min-height: 120px; }
+      input { padding: 0.5rem; }
+      button { padding: 0.6rem 1rem; margin-top: 1rem; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1.5rem; }
+      th, td { border: 1px solid #1e293b; padding: 0.5rem; }
+      th { background: #1e293b; }
+      #logs { margin-top: 2rem; background: #111827; padding: 1rem; height: 240px; overflow-y: auto; }
+      a { color: #38bdf8; }
+    </style>
+  </head>
+  <body>
+    <h1>AI Lead Discovery (Testing UI)</h1>
+
+    <form id="lead-form">
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" placeholder="Describe the investor profile...">
+Identify new institutional investors acting as LPs in Sunbelt build-to-rent opportunity zone projects.
+      </textarea>
+      <div style="margin-top: 1rem">
+        <label for="target">Target leads</label>
+        <input id="target" type="number" value="5" min="1" max="50" />
+      </div>
+      <button type="submit">Run Research</button>
+    </form>
+
+    <section id="results" hidden>
+      <h2>Leads</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Company</th>
+            <th>Email</th>
+            <th>LinkedIn</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody id="lead-body"></tbody>
+      </table>
+    </section>
+
+    <section id="logs">
+      <strong>Logs</strong>
+      <ul id="log-list"></ul>
+    </section>
+
+    <script src="/static/scripts.js"></script>
+  </body>
+</html>
