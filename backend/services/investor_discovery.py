@@ -183,6 +183,14 @@ async def discover_investor_companies(
 
     raw_results = await search_companies(criteria, max(target_count * 6, 40))
     logger.info(f"Investor discovery pulled {len(raw_results)} raw results")
+    for idx, item in enumerate(raw_results[:20], 1):
+        logger.info(
+            "  [%s] %s | domain=%s | snippet=%s",
+            idx,
+            (item.get("name") or "")[:80],
+            item.get("domain"),
+            (item.get("description") or "")[:120],
+        )
 
     qualified: List[Dict[str, Any]] = []
     diagnostics: List[Dict[str, Any]] = []
@@ -200,10 +208,25 @@ async def discover_investor_companies(
             }
         )
         if score > 0:
+            logger.info(
+                "✅ Qualified company: %s (domain=%s, score=%s, reasons=%s)",
+                result.get("name"),
+                result.get("domain"),
+                score,
+                reasons,
+            )
             result = dict(result)
             result["discovery_score"] = score
             result["discovery_reasons"] = reasons
             qualified.append(result)
+        else:
+            logger.info(
+                "❌ Filtered company: %s (domain=%s, score=%s, reasons=%s)",
+                result.get("name"),
+                result.get("domain"),
+                score,
+                reasons,
+            )
 
     deduped: Dict[str, Dict[str, Any]] = {}
     for res in qualified:
