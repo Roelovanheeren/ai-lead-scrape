@@ -14,6 +14,7 @@ import os
 import asyncio
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 from resources.hazen_road_research_guide import HAZEN_ROAD_GUIDE
 
@@ -34,12 +35,23 @@ try:
         find_company_contacts,
     )
     from services.investor_discovery import discover_investor_companies
+    from services.ai_research import AIResearchService
     REAL_RESEARCH_AVAILABLE = True
     logger.info("✅ Real research engine loaded successfully")
+    try:
+        ai_research_service = AIResearchService()
+        AI_RESEARCH_AVAILABLE = True
+        logger.info("✅ AI research service initialized")
+    except Exception as ai_err:
+        AI_RESEARCH_AVAILABLE = False
+        ai_research_service = None
+        logger.warning(f"⚠️ AI research service unavailable: {ai_err}")
 except ImportError as e:
     logger.error(f"❌ Real research engine not available: {e}")
     logger.error("❌ System will not work without real research!")
     REAL_RESEARCH_AVAILABLE = False
+    AI_RESEARCH_AVAILABLE = False
+    ai_research_service = None
 
 # Pydantic models
 from pydantic import BaseModel
@@ -260,6 +272,8 @@ async def process_job_real_only(job_id: str, job_data: dict):
         # Check if user is asking for a specific company
         discovery_diagnostics: List[Dict[str, Any]] = []
         specific_company_name = extract_company_name_from_prompt(prompt)
+        company_profiles: List[Dict[str, Any]] = []
+        ai_contact_suggestions: Dict[str, List[Dict[str, Any]]] = {}
 
         if specific_company_name:
             logger.info(f"Job {job_id}: 🎯 SPECIFIC COMPANY REQUEST: {specific_company_name}")
@@ -297,6 +311,28 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
             job_data['discovery_diagnostics'] = discovery_diagnostics
             job_storage[job_id]['discovery_diagnostics'] = discovery_diagnostics
+
+            seen_domains = {c.get("domain") for c in companies if c.get("domain")}
+            if AI_RESEARCH_AVAILABLE and ai_research_service:
+                try:
+                    ai_companies, ai_profiles = await ai_research_service.suggest_companies(
+                        prompt,
+                        max(target_count, 10),
+                        list(seen_domains),
+                    )
+                    for profile in ai_profiles:
+                        company_profiles.append(profile)
+                        domain = profile.get("website")
+                        domain = _extract_domain(domain) if domain else ""
+                        if domain:
+                            ai_contact_suggestions[domain] = profile.get("contacts") or []
+                    for comp in ai_companies:
+                        domain = comp.get("domain")
+                        if domain and domain not in seen_domains:
+                            companies.append(comp)
+                            seen_domains.add(domain)
+                except Exception as ai_err:
+                    logger.warning(f"⚠️ AI company discovery failed: {ai_err}")
 
             if not companies:
                 top_notes = ", ".join(
@@ -445,6 +481,28 @@ async def process_job_real_only(job_id: str, job_data: dict):
 
         while len(all_leads) < target_count:
             candidate = _next_candidate()
+            if not candidate and AI_RESEARCH_AVAILABLE and ai_research_service:
+                try:
+                    exclude_domains = list(seen_domains | processed_domains)
+                    ai_more, ai_profiles_more = await ai_research_service.suggest_companies(
+                        prompt,
+                        max(target_count - len(all_leads), 5),
+                        exclude_domains,
+                    )
+                    for profile in ai_profiles_more:
+                        company_profiles.append(profile)
+                        domain_profile = _extract_domain(profile.get("website")) if profile.get("website") else ""
+                        if domain_profile and domain_profile not in ai_contact_suggestions:
+                            ai_contact_suggestions[domain_profile] = profile.get("contacts") or []
+                    for comp in ai_more:
+                        domain_more = comp.get("domain")
+                        if domain_more and domain_more not in seen_domains and domain_more not in processed_domains:
+                            fallback_candidates.append(comp)
+                            seen_domains.add(domain_more)
+                    total_available = len(primary_candidates) + len(fallback_candidates) + len(processed_domains)
+                except Exception as ai_extend_err:
+                    logger.warning(f"⚠️ AI discovery extension failed: {ai_extend_err}")
+                candidate = _next_candidate()
             if not candidate:
                 break
 
@@ -457,7 +515,7 @@ async def process_job_real_only(job_id: str, job_data: dict):
             company_name = candidate.get('name', 'Unknown')
 
             logger.info(
-                f"Job {job_id}: [{companies_evaluated}/{total_available}] Evaluating {company_name} ({domain})"
+                    f"Job {job_id}: [{companies_evaluated}/{total_available}] Evaluating {company_name} ({domain})"
             )
 
             job_storage[job_id].update({
@@ -488,8 +546,40 @@ async def process_job_real_only(job_id: str, job_data: dict):
                         if len(all_leads) >= target_count:
                             break
                 else:
-                    logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
-                    skip_reasons.append(f"No qualifying contacts at {company_name} ({domain})")
+                    contacts = ai_contact_suggestions.get(domain) or []
+                    if not contacts and AI_RESEARCH_AVAILABLE and ai_research_service:
+                        try:
+                            contacts = await ai_research_service.fetch_contacts(
+                                company_name,
+                                candidate.get("website"),
+                                max_contacts=target_count - len(all_leads),
+                            )
+                            if contacts:
+                                ai_contact_suggestions[domain] = contacts
+                        except Exception as fetch_err:
+                            logger.warning(f"⚠️ AI contact lookup failed for {company_name}: {fetch_err}")
+
+                    if contacts:
+                        logger.info(f"Job {job_id}: ✅ AI provided {len(contacts)} contacts for {company_name}")
+                        for raw_contact in contacts:
+                            normalized = normalize_contact(raw_contact, candidate)
+                            if not normalized:
+                                continue
+                            dedupe_key = (
+                                (normalized.get("contact_name") or "").lower(),
+                                (normalized.get("company") or "").lower(),
+                                (normalized.get("linkedin_url") or "").lower(),
+                                (normalized.get("email") or "").lower(),
+                            )
+                            if dedupe_key in seen_leads:
+                                continue
+                            seen_leads.add(dedupe_key)
+                            all_leads.append(normalized)
+                            if len(all_leads) >= target_count:
+                                break
+                    else:
+                        logger.error(f"Job {job_id}: ❌ FAILED to find contacts at {company_name} ({domain})")
+                        skip_reasons.append(f"No qualifying contacts at {company_name} ({domain})")
             except Exception as e:
                 logger.error(
                     f"Job {job_id}: ❌ EXCEPTION finding contacts at {company_name}: {type(e).__name__}: {e}"
@@ -503,6 +593,9 @@ async def process_job_real_only(job_id: str, job_data: dict):
         total_companies = companies_evaluated
         
         # Final result
+        job_data['company_profiles'] = company_profiles
+        job_storage[job_id]['company_profiles'] = company_profiles
+
         if len(all_leads) == 0:
             # Build detailed error message explaining WHY no contacts found
             error_details = []
@@ -647,3 +740,11 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
+def _extract_domain(url: Optional[str]) -> str:
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain

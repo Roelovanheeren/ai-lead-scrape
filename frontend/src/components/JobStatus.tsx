@@ -203,6 +203,7 @@ export default function JobStatus() {
             <CardContent>
               <div className="space-y-4">
                 {jobData.leads.slice(0, 10).map((lead, index) => {
+                  const title = lead.title || lead.role
                   const linkedinUrl =
                     lead.linkedin_url ||
                     lead.linkedin ||
@@ -215,16 +216,35 @@ export default function JobStatus() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-medium">{lead.contact_name}</h4>
+                        {title && (
+                          <p className="text-sm text-muted-foreground">{title}</p>
+                        )}
                         <p className="text-sm text-muted-foreground">{lead.company}</p>
                         <div className="flex items-center gap-4 mt-2 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            <span>{lead.email}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            <span>{lead.phone}</span>
-                          </div>
+                          {lead.email && (
+                            <div className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              <a
+                                className="underline hover:text-brand"
+                                href={`mailto:${lead.email}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Email
+                              </a>
+                            </div>
+                          )}
+                          {lead.phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              <a
+                                className="underline hover:text-brand"
+                                href={`tel:${lead.phone}`}
+                              >
+                                Call
+                              </a>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1">
                             <Building className="h-3 w-3" />
                             <span>{lead.industry}</span>
