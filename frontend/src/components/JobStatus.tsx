@@ -216,10 +216,11 @@ export default function JobStatus() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-medium">{lead.contact_name}</h4>
-                        {title && (
-                          <p className="text-sm text-muted-foreground">{title}</p>
-                        )}
-                        <p className="text-sm text-muted-foreground">{lead.company}</p>
+                        <div className="text-sm text-muted-foreground">
+                          {title}
+                          {title && lead.company ? " • " : ""}
+                          {lead.company}
+                        </div>
                         <div className="flex items-center gap-4 mt-2 text-sm">
                           {lead.email && (
                             <div className="flex items-center gap-1">

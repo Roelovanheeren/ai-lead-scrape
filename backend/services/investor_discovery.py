@@ -96,6 +96,10 @@ BLOCKED_DOMAINS = {
     "urbanize.city",
     "bisnow.com",
     "irei.com",
+    "warburgpincus.com",
+    "blackstone.com",
+    "apollo.com",
+    "kkr.com",
 }
 
 
