@@ -70,6 +70,7 @@ class AIResearchService:
             model=self.model,
             input=messages,
             temperature=temperature,
+            tools=[{"type": "web"}],
         )
         return response.output_text
 
