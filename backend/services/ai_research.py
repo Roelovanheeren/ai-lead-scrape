@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from openai import OpenAI
@@ -193,3 +193,69 @@ If unsure, set confidence to 0.4 and leave email/phone null.
                 continue
             contacts.append(entry)
         return contacts[:max_contacts]
+
+    async def generate_leads(
+        self,
+        prompt: str,
+        target_count: int,
+        excluded_companies: List[str],
+        excluded_contacts: List[str],
+    ) -> List[Dict[str, Any]]:
+        """Ask GPT (with browsing) to return structured investor leads."""
+        instructions = f"""
+Return a JSON array describing institutional investors that match Hazen Road's profile.
+Requirements:
+- Produce AT LEAST {target_count} distinct companies if possible.
+- Exclude these companies (and their subsidiaries): {excluded_companies}.
+- Contacts should be senior decision makers (Partner, Managing Director, VP Investments, Head of Capital Markets, CIO, etc.).
+- Skip contacts whose names appear in this list: {excluded_contacts}.
+- Each array element MUST follow this schema:
+{{
+  "company": "Legal company name",
+  "website": "https://...",
+  "hq": "City, State",
+  "aum": "$X.XB" (if known),
+  "strategy_summary": "1-2 sentences describing LP/BTR/OZ strategy",
+  "alignment_score": 0-100,
+  "reasons": ["Why this firm fits Hazen Road"],
+  "sources": ["https://verified-source", ...],
+  "contacts": [
+     {{
+       "name": "Full Name",
+       "title": "Senior Title",
+       "email": "email@company.com" or null,
+       "phone": "+1-..." or null,
+       "linkedin": "https://linkedin.com/in/..." or null,
+       "confidence": 0-1
+     }}
+  ]
+}}
+- Prefer firms with Sunbelt build-to-rent / multifamily exposure, Opportunity Zone activity, and fund sizes that can write $5-50M equity checks.
+- Always cite sources for company claims.
+"""
+
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {
+                "role": "user",
+                "content": instructions
+                + "\nBase your research on reliable current sources. Use the following user brief for additional context:\n"
+                + (prompt or "Discover institutional investors for Hazen Road."),
+            },
+        ]
+
+        text = await asyncio.to_thread(self._call_openai, messages)
+        parsed = _parse_json_blocks(text)
+        if not isinstance(parsed, list):
+            logger.warning("AI lead generation returned non-list payload")
+            return []
+
+        cleaned: List[Dict[str, Any]] = []
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            if not entry.get("company"):
+                continue
+            cleaned.append(entry)
+        logger.info("AI lead generation produced %s companies", len(cleaned))
+        return cleaned
